@@ -13,6 +13,7 @@ import cp_config  # noqa: E402
 import cp_format  # noqa: E402
 import cp_prompts  # noqa: E402
 import cp_providers  # noqa: E402
+import cp_secrets  # noqa: E402
 
 
 class TestDirectives(unittest.TestCase):
@@ -116,6 +117,35 @@ class TestFormatHelpers(unittest.TestCase):
         self.assertEqual(cp_format._rgb("#00FF00"), 0x00FF00)
         self.assertEqual(cp_format._cm(2.5), 2500)
         self.assertIsNone(cp_format._cm("nonsense"))
+
+
+class TestSecrets(unittest.TestCase):
+    def test_available_is_bool(self):
+        self.assertIsInstance(cp_secrets.available(), bool)
+
+    def test_get_none_without_backend(self):
+        if cp_secrets.available():
+            self.skipTest("Secret Service present")
+        self.assertIsNone(cp_secrets.get("anything"))
+
+    def test_roundtrip_when_available(self):
+        if not cp_secrets.available():
+            self.skipTest("no Secret Service")
+        self.assertTrue(cp_secrets.set("unittest-account", "value"))
+        self.assertEqual(cp_secrets.get("unittest-account"), "value")
+        cp_secrets.delete("unittest-account")
+        self.assertEqual(cp_secrets.get("unittest-account"), "")
+
+    def test_migrate_plaintext(self):
+        cfg = {"providers": {"p1": {"api_key": "x"}}}
+        # migrate_keys is a no-op without a keyring; with one it clears the key
+        cp_config.migrate_keys(cfg)
+        key = cfg["providers"]["p1"]["api_key"]
+        if cp_secrets.available():
+            self.assertEqual(key, "")
+            cp_secrets.delete("p1")  # clean up the keyring entry
+        else:
+            self.assertEqual(key, "x")
 
 
 if __name__ == "__main__":

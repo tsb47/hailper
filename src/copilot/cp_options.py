@@ -8,6 +8,7 @@ from com.sun.star.awt import XItemListener
 
 import cp_config
 import cp_providers
+import cp_secrets
 
 
 DLG_W = 460
@@ -71,6 +72,7 @@ class _OptionsBridge(object):
         self.frame = frame
         self.config = config
         self.saved = False
+        self._key_cleared = False
         self._label_to_id = {}
         self._id_to_label = {}
         for pid, spec in cp_providers.PROVIDERS.items():
@@ -119,8 +121,17 @@ class _OptionsBridge(object):
             "api_key",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlEdit", "api_key",
-                PositionX=field_x, PositionY=y, Width=field_w,
+                PositionX=field_x, PositionY=y, Width=field_w - 70,
                 Height=LINE_H + 6, EchoChar=42,
+            ),
+        )
+        self.model.insertByName(
+            "btn_clear_key",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_clear_key",
+                PositionX=field_x + field_w - 64, PositionY=y, Width=64,
+                Height=LINE_H + 6, Label="Clear",
+                HelpText="Delete the stored API key",
             ),
         )
 
@@ -327,6 +338,9 @@ class _OptionsBridge(object):
         self.dialog.getControl("btn_models").addActionListener(
             _ActionListener(lambda e: self._load_models())
         )
+        self.dialog.getControl("btn_clear_key").addActionListener(
+            _ActionListener(lambda e: self._clear_key())
+        )
 
         self._load_provider()
 
@@ -362,6 +376,16 @@ class _OptionsBridge(object):
         if control is not None:
             control.getModel().setPropertyValue("State", 1 if value else 0)
 
+    def _key_label(self, pid, entry):
+        if not cp_secrets.available():
+            return "API key (file):" if entry.get("api_key") else "API key:"
+        return "API key (keyring):" if cp_secrets.get(pid) else "API key:"
+
+    def _clear_key(self):
+        self._key_cleared = True
+        self._set("api_key", "")
+        self._set("key_label", "API key (cleared):")
+
     def _selected_provider(self):
         label = self._get("provider")
         return self._label_to_id.get(label, self.config.get("provider", "ollama"))
@@ -370,7 +394,10 @@ class _OptionsBridge(object):
         pid = self._selected_provider()
         entry = self.config.get("providers", {}).get(pid, {})
         spec = cp_providers.PROVIDERS.get(pid, {})
-        self._set("api_key", entry.get("api_key", ""))
+        self._key_cleared = False
+        # Never load the real key into the (copyable) field.
+        self._set("api_key", "")
+        self._set("key_label", self._key_label(pid, entry))
         self._set("model", entry.get("model") or spec.get("default_model", ""))
         self._set("base_url", entry.get("base_url") or spec.get("base_url", ""))
         self._set("temperature", self.config.get("temperature", 0.3))
@@ -410,9 +437,21 @@ class _OptionsBridge(object):
         except Exception:
             pass
 
+    def _effective_key(self, pid):
+        typed = self._get("api_key").strip()
+        if typed:
+            return typed
+        if self._key_cleared:
+            return ""
+        stored = cp_secrets.get(pid)
+        if stored:
+            return stored
+        entry = self.config.get("providers", {}).get(pid, {})
+        return (entry.get("api_key") or "").strip()
+
     def _load_models(self):
         pid = self._selected_provider()
-        key = self._get("api_key").strip()
+        key = self._effective_key(pid)
         base = self._get("base_url").strip()
         if not base:
             self._set_test_status("Set a base URL first.")
@@ -432,7 +471,7 @@ class _OptionsBridge(object):
         spec = cp_providers.PROVIDERS.get(pid, {})
         model = self._get("model").strip() or spec.get("default_model", "")
         base = self._get("base_url").strip()
-        key = self._get("api_key").strip()
+        key = self._effective_key(pid)
         self._set_test_status("Testing\u2026")
         try:
             reply = cp_providers.chat(
@@ -449,7 +488,19 @@ class _OptionsBridge(object):
         pid = self._selected_provider()
         providers = self.config.setdefault("providers", {})
         entry = providers.setdefault(pid, {})
-        entry["api_key"] = self._get("api_key").strip()
+        remember = self._get_state("remember_keys")
+        typed = self._get("api_key").strip()
+        if self._key_cleared:
+            cp_secrets.delete(pid)
+            entry["api_key"] = ""
+        elif typed:
+            if remember and cp_secrets.available() and cp_secrets.set(pid, typed):
+                entry["api_key"] = ""
+            else:
+                # Session-only (remember off) or no keyring: keep in memory,
+                # and it is stripped from the file below when not remembered.
+                entry["api_key"] = typed
+        # Otherwise leave any existing stored key untouched.
         entry["model"] = self._get("model").strip()
         entry["base_url"] = self._get("base_url").strip()
 

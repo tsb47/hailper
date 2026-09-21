@@ -4,6 +4,19 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-09-21
+
+### Security
+
+- **API keys are stored in the OS keyring** (Secret Service, via libsecret)
+  instead of plaintext in `config.json`. Any existing plaintext key is migrated
+  automatically on first load and removed from the file.
+- The Settings dialog **never loads the real key into the input field**, so it
+  can no longer be copied out of the masked box; a **Clear** button deletes the
+  stored key. The key label shows where the key lives (`keyring` / `file`).
+- If no OS keyring is available, keys are kept **in memory for the session only**
+  (never written to disk) unless you leave them unremembered.
+
 ## [1.1.0] - 2026-09-21
 
 ### Added

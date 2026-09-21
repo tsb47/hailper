@@ -4,6 +4,7 @@ import json
 import os
 import stat
 
+import cp_secrets
 from cp_providers import PROVIDERS
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "hailper")
@@ -76,7 +77,29 @@ def load():
                     save(config)
         except (ValueError, OSError):
             pass
+    if migrate_keys(config):
+        save(config)
     return config
+
+
+def migrate_keys(config):
+    """Move any plaintext API keys from the config into the OS keyring.
+
+    Returns True when the config was changed (so it can be re-saved without
+    the keys).
+    """
+    if not cp_secrets.available():
+        return False
+    changed = False
+    for pid, entry in config.get("providers", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        key = (entry.get("api_key") or "").strip()
+        if key:
+            if cp_secrets.set(pid, key):
+                entry["api_key"] = ""
+                changed = True
+    return changed
 
 
 def save(config):
@@ -100,7 +123,13 @@ def active_provider(config):
     pid = config.get("provider", "ollama")
     spec = PROVIDERS.get(pid) or PROVIDERS["ollama"]
     entry = config.get("providers", {}).get(pid, {})
-    api_key = (entry.get("api_key") or "").strip()
+    api_key = ""
+    stored = cp_secrets.get(pid)
+    if stored:
+        api_key = stored.strip()
+    if not api_key:
+        # Fall back to the session-only / legacy plaintext value.
+        api_key = (entry.get("api_key") or "").strip()
     model = (entry.get("model") or spec["default_model"]).strip()
     base_url = (entry.get("base_url") or spec["base_url"]).strip()
     return pid, spec, api_key, model, base_url

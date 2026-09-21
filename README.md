@@ -187,8 +187,10 @@ timeout and the system prompt. Two permissions control what the model may do:
   edits arrive as accept/reject tracked changes instead of silent replacements;
   the buttons read **Suggest (tracked)** / **Adopt (tracked)**. *Adopt all*
   becomes a single undo step.
-- **Remember API key on this computer** — turn off to keep the key only in
-  memory for the session; it is then never written to disk.
+- **Remember API key on this computer** — API keys are stored in the **OS
+  keyring** (Secret Service / libsecret), not in the config file. Turn this off
+  to keep the key in memory for the session only. The key field never shows the
+  stored key (so it can't be copied out); use **Clear** to delete it.
 - **Stream responses as they are generated** — tokens appear in the transcript
   while the model is still writing (Proofread stays buffered so its JSON is
   parsed once complete).
@@ -196,10 +198,11 @@ timeout and the system prompt. Two permissions control what the model may do:
 Use **Test connection** to send a one-word round trip and **Load models** to
 populate the model list from the provider.
 
-Settings are stored in `~/.config/hailper/config.json` with `0600` permissions
-(keys are plain text — treat it as a credential file). The config from the
-previous `~/.config/libreoffice-copilot/` location is migrated automatically on
-first run.
+Settings are stored in `~/.config/hailper/config.json` (mode `0600`); API keys
+are **not** written there — they go to the OS keyring. If no keyring backend is
+available, a key is kept in memory for the current session only. Existing
+plaintext keys are migrated into the keyring automatically, and the config from
+the previous `~/.config/libreoffice-copilot/` location is migrated on first run.
 
 Provider hints: DeepSeek `https://api.deepseek.com/v1`; Qwen
 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`; Grok
