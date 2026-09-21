@@ -11,7 +11,7 @@ import cp_providers
 
 
 DLG_W = 460
-DLG_H = 402
+DLG_H = 386
 PAD = 8
 LINE_H = 14
 BTN_H = 20
