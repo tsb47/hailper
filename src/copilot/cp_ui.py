@@ -37,6 +37,11 @@ def create_model(dialog_model, service, name, **props):
     """
     model = dialog_model.createInstance(service + "Model")
     model.setPropertyValue("Name", name)
+    if "FontHeight" not in props:
+        try:
+            model.setPropertyValue("FontHeight", 8.0)
+        except Exception:
+            pass
     for key, value in props.items():
         model.setPropertyValue(key, value)
     return model

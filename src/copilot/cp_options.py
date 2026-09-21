@@ -10,11 +10,12 @@ import cp_config
 import cp_providers
 
 
-DLG_W = 560
-DLG_H = 500
-PAD = 10
-LINE_H = 18
-BTN_H = 24
+DLG_W = 460
+DLG_H = 384
+PAD = 8
+LINE_H = 14
+BTN_H = 20
+FONT_H = 8
 MAP_PIXEL = 7
 
 
@@ -25,6 +26,11 @@ def _smgr(ctx):
 def _create_model(dialog_model, service, name, **props):
     model = dialog_model.createInstance(service + "Model")
     model.setPropertyValue("Name", name)
+    if "FontHeight" not in props:
+        try:
+            model.setPropertyValue("FontHeight", 8.0)
+        except Exception:
+            pass
     for key, value in props.items():
         model.setPropertyValue(key, value)
     return model
@@ -91,12 +97,12 @@ class _OptionsBridge(object):
         self.model.setPropertyValue("Moveable", True)
         self.model.setPropertyValue("Closeable", True)
 
-        field_x = 120
+        field_x = 96
         field_w = DLG_W - field_x - PAD
-        step = LINE_H + 10
+        step = LINE_H + 6
         y = PAD
 
-        self._add_label("provider_label", PAD, y, "Provider:", 105)
+        self._add_label("provider_label", PAD, y, "Provider:", 80)
         combo = _create_model(
             self.model, "com.sun.star.awt.UnoControlComboBox", "provider",
             PositionX=field_x, PositionY=y, Width=field_w,
@@ -108,7 +114,7 @@ class _OptionsBridge(object):
         self.model.insertByName("provider", combo)
 
         y += step
-        self._add_label("key_label", PAD, y, "API key:", 105)
+        self._add_label("key_label", PAD, y, "API key:", 80)
         self.model.insertByName(
             "api_key",
             _create_model(
@@ -119,7 +125,7 @@ class _OptionsBridge(object):
         )
 
         y += step
-        self._add_label("model_label", PAD, y, "Model:", 105)
+        self._add_label("model_label", PAD, y, "Model:", 80)
         model_combo = _create_model(
             self.model, "com.sun.star.awt.UnoControlComboBox", "model",
             PositionX=field_x, PositionY=y, Width=field_w,
@@ -129,7 +135,7 @@ class _OptionsBridge(object):
         self.model.insertByName("model", model_combo)
 
         y += step
-        self._add_label("base_label", PAD, y, "Base URL:", 105)
+        self._add_label("base_label", PAD, y, "Base URL:", 80)
         self.model.insertByName(
             "base_url",
             _create_model(
@@ -140,12 +146,12 @@ class _OptionsBridge(object):
         )
 
         y += step
-        self._add_label("conn_label", PAD, y, "Connection:", 105)
+        self._add_label("conn_label", PAD, y, "Connection:", 80)
         self.model.insertByName(
             "btn_test",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlButton", "btn_test",
-                PositionX=field_x, PositionY=y, Width=118, Height=BTN_H,
+                PositionX=field_x, PositionY=y, Width=96, Height=BTN_H,
                 Label="Test connection",
             ),
         )
@@ -153,7 +159,7 @@ class _OptionsBridge(object):
             "btn_models",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlButton", "btn_models",
-                PositionX=field_x + 126, PositionY=y, Width=104, Height=BTN_H,
+                PositionX=field_x + 102, PositionY=y, Width=86, Height=BTN_H,
                 Label="Load models",
             ),
         )
@@ -161,43 +167,43 @@ class _OptionsBridge(object):
             "test_status",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlFixedText",
-                "test_status", PositionX=field_x + 238,
-                PositionY=y + 4, Width=field_w - 238, Height=LINE_H, Label="",
+                "test_status", PositionX=field_x + 194,
+                PositionY=y + 3, Width=field_w - 194, Height=LINE_H, Label="",
             ),
         )
 
         y += step
-        self._add_label("temp_label", PAD, y, "Temperature:", 105)
+        self._add_label("temp_label", PAD, y, "Temperature:", 80)
         self.model.insertByName(
             "temperature",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlEdit", "temperature",
-                PositionX=field_x, PositionY=y, Width=70, Height=LINE_H + 6,
+                PositionX=field_x, PositionY=y, Width=54, Height=LINE_H + 6,
             ),
         )
-        self._add_label("tokens_label", 220, y, "Max tokens:", 85)
+        self._add_label("tokens_label", 168, y, "Max tokens:", 62)
         self.model.insertByName(
             "max_tokens",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlEdit", "max_tokens",
-                PositionX=310, PositionY=y, Width=70, Height=LINE_H + 6,
+                PositionX=236, PositionY=y, Width=54, Height=LINE_H + 6,
             ),
         )
 
         y += step
-        self._add_label("timeout_label", PAD, y, "Timeout (s):", 105)
+        self._add_label("timeout_label", PAD, y, "Timeout (s):", 80)
         self.model.insertByName(
             "timeout",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlEdit", "timeout",
-                PositionX=field_x, PositionY=y, Width=70, Height=LINE_H + 6,
+                PositionX=field_x, PositionY=y, Width=54, Height=LINE_H + 6,
             ),
         )
         self.model.insertByName(
             "timeout_hint",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlFixedText", "timeout_hint",
-                PositionX=200, PositionY=y + 3, Width=field_w - 80, Height=LINE_H,
+                PositionX=168, PositionY=y + 3, Width=field_w - 160, Height=LINE_H,
                 Label="seconds (increase for slow local models)",
             ),
         )
@@ -254,7 +260,7 @@ class _OptionsBridge(object):
         )
 
         y += LINE_H + 8
-        self._add_label("system_label", PAD, y, "System prompt:", 105)
+        self._add_label("system_label", PAD, y, "System prompt:", 80)
         system_height = DLG_H - y - BTN_H - 2 * PAD - 6
         self.model.insertByName(
             "system_prompt",
@@ -271,16 +277,16 @@ class _OptionsBridge(object):
             "btn_save",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlButton", "btn_save",
-                PositionX=DLG_W - 2 * 80 - PAD - 6, PositionY=by,
-                Width=80, Height=BTN_H, Label="Save", DefaultButton=True,
+                PositionX=DLG_W - 2 * 66 - PAD - 6, PositionY=by,
+                Width=66, Height=BTN_H, Label="Save", DefaultButton=True,
             ),
         )
         self.model.insertByName(
             "btn_cancel",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlButton", "btn_cancel",
-                PositionX=DLG_W - 80 - PAD, PositionY=by,
-                Width=80, Height=BTN_H, Label="Cancel",
+                PositionX=DLG_W - 66 - PAD, PositionY=by,
+                Width=66, Height=BTN_H, Label="Cancel",
             ),
         )
 
@@ -314,7 +320,7 @@ class _OptionsBridge(object):
 
         self._load_provider()
 
-    def _add_label(self, name, x, y, label, width=105):
+    def _add_label(self, name, x, y, label, width=80):
         self.model.insertByName(
             name,
             _create_model(

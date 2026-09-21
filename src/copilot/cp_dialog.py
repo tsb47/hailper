@@ -26,12 +26,13 @@ import cp_ui as ui
 
 DLG_W = 170
 DLG_H = 326
-PAD = 6
-LINE_H = 12
-BTN_H = 16
-RESULT_H = 120
-RESULT_MIN = 60
-RESULT_MAX = 140
+PAD = 4
+LINE_H = 10
+BTN_H = 13
+RESULT_H = 90
+RESULT_MIN = 44
+RESULT_MAX = 100
+FONT_H = 8
 MAP_PIXEL = 7
 POS_FLAGS = 3  # com.sun.star.awt.PosSize.X | PosSize.Y
 SLOTS = 6
@@ -339,16 +340,16 @@ class _Bridge(object):
         y += BTN_H + 4
         for index in range(2):
             if index < len(visible):
-                positions["choice_label_%d" % index] = (PAD, y + 1, 58, LINE_H)
+                positions["choice_label_%d" % index] = (PAD, y + 1, 48, LINE_H + 3)
                 positions["choice_%d" % index] = (
-                    PAD + 60, y - 1, content_w - 60, LINE_H + 4)
-                y += LINE_H + 4
+                    PAD + 50, y, content_w - 50, LINE_H + 3)
+                y += LINE_H + 5
 
         # Conversation transcript, with the input below it (chat layout).
         positions["result_label"] = (PAD, y, content_w, LINE_H)
         y += LINE_H + 2
         result_y = y
-        fixed_below = (42 + (BTN_H + 4) + (LINE_H + 2) + (LINE_H + 4)
+        fixed_below = (28 + (BTN_H + 4) + (LINE_H + 2) + (LINE_H + 4)
                        + (2 * BTN_H + 2) + PAD)
         scale = getattr(self, "scale", 1.0) or 1.0
         result_h = RESULT_H
@@ -356,12 +357,12 @@ class _Bridge(object):
         if available:
             result_h = max(RESULT_MIN,
                            min(RESULT_MAX,
-                               (available / scale) - result_y - fixed_below - 40))
+                               (available / scale) - result_y - fixed_below - 60))
         positions["result"] = (PAD, result_y, content_w, result_h)
         y = result_y + result_h + 4
 
-        positions["instruction"] = (PAD, y, content_w, 40)
-        y += 42
+        positions["instruction"] = (PAD, y, content_w, 26)
+        y += 28
         positions["generate"] = (PAD, y, content_w, BTN_H + 2)
         y += BTN_H + 4
         positions["provider_label"] = (PAD, y, content_w, LINE_H)
