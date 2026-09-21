@@ -4,6 +4,20 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-21
+
+### Added
+
+- **Formatting, styling and layout (Writer).** With *Allow HaiLPER to change
+  formatting, styles and layout* enabled, the model can apply character
+  formatting (bold, italic, underline, strikeout, font, size, colour,
+  highlight), paragraph formatting (paragraph/character style, alignment,
+  space before/after, indents, line spacing, keep-together), page layout
+  (page style, margins, orientation) and insert tables, via a
+  `{"format": [...]}` directive. Document-wide and page-layout changes are
+  confirmed before applying, and each batch is a single undo step. The model
+  is given the document's available style names so it only uses real styles.
+
 ## [1.0.2] - 2026-09-21
 
 ### Changed

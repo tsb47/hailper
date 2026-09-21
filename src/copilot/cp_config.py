@@ -42,6 +42,7 @@ DEFAULTS = {
     "action_choices": {},
     "allow_edits": True,
     "allow_document_access": True,
+    "allow_formatting": True,
     "track_changes": True,
     "remember_keys": True,
     "stream": True,

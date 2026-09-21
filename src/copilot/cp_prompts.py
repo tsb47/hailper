@@ -277,6 +277,13 @@ def parse_directive(text):
                 "find": str(edit.get("find", "")).strip(),
                 "text": str(edit["text"]),
             })
+        fmt = data.get("format")
+        if isinstance(fmt, dict):
+            return ("format", [fmt])
+        if isinstance(fmt, list):
+            ops = [item for item in fmt if isinstance(item, dict)]
+            if ops:
+                return ("format", ops)
     return None
 
 

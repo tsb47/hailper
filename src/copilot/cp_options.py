@@ -11,7 +11,7 @@ import cp_providers
 
 
 DLG_W = 460
-DLG_H = 384
+DLG_H = 402
 PAD = 8
 LINE_H = 14
 BTN_H = 20
@@ -230,6 +230,16 @@ class _OptionsBridge(object):
 
         y += LINE_H + 4
         self.model.insertByName(
+            "allow_formatting",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "allow_formatting", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Allow HaiLPER to change formatting, styles and layout",
+            ),
+        )
+        y += LINE_H + 4
+        self.model.insertByName(
             "track_changes",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlCheckBox",
@@ -370,6 +380,8 @@ class _OptionsBridge(object):
         self._set_state("allow_edits", self.config.get("allow_edits", False))
         self._set_state("allow_document_access",
                         self.config.get("allow_document_access", True))
+        self._set_state("allow_formatting",
+                        self.config.get("allow_formatting", True))
         self._set_state("track_changes", self.config.get("track_changes", True))
         self._set_state("remember_keys", self.config.get("remember_keys", True))
         self._set_state("stream", self.config.get("stream", True))
@@ -457,6 +469,7 @@ class _OptionsBridge(object):
         self.config["system_prompt"] = self._get("system_prompt")
         self.config["allow_edits"] = self._get_state("allow_edits")
         self.config["allow_document_access"] = self._get_state("allow_document_access")
+        self.config["allow_formatting"] = self._get_state("allow_formatting")
         self.config["track_changes"] = self._get_state("track_changes")
         self.config["remember_keys"] = self._get_state("remember_keys")
         self.config["stream"] = self._get_state("stream")

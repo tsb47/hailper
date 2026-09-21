@@ -110,6 +110,28 @@ def show_message_box(ctx, frame, title, message, kind="infobox"):
         pass
 
 
+def confirm(ctx, frame, title, message):
+    """Show a Yes/No box; returns True for Yes (and when unavailable)."""
+    try:
+        toolkit = smgr(ctx).createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
+        parent = None
+        try:
+            parent = frame.getContainerWindow()
+        except Exception:
+            parent = None
+        rectangle = uno.createUnoStruct("com.sun.star.awt.Rectangle")
+        rectangle.X = 0
+        rectangle.Y = 0
+        rectangle.Width = 320
+        rectangle.Height = 160
+        box = toolkit.createMessageBox(
+            parent, rectangle, "querybox", "yes_no", title, message
+        )
+        return box.execute() in (1, 2)  # OK or YES
+    except Exception:
+        return True
+
+
 class ActionListener(unohelper.Base, XActionListener):
     def __init__(self, callback):
         self._callback = callback

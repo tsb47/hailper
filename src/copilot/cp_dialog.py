@@ -19,6 +19,7 @@ from com.sun.star.awt import XWindowListener
 
 import cp_config
 import cp_document
+import cp_format
 import cp_prompts
 import cp_providers
 import cp_ui as ui
@@ -781,6 +782,13 @@ class _Bridge(object):
             hints.append(cp_prompts.EDIT_HINT)
         if self.config.get("allow_document_access") and self.action == "chat":
             hints.append(cp_prompts.DOCUMENT_REQUEST_HINT)
+        if self.config.get("allow_formatting"):
+            try:
+                doc_ctx = self._current_doc_ctx()
+                if doc_ctx is not None and doc_ctx.kind == cp_document.WRITER:
+                    hints.append(cp_format.format_prompt(doc_ctx.doc))
+            except Exception as error:  # noqa: BLE001
+                ui.log("format prompt failed: %r" % error)
         if hints:
             block = "\n\n".join(hints)
             system = (system + "\n\n" + block) if system else block
@@ -796,6 +804,8 @@ class _Bridge(object):
         self.gen_id += 1
         self.streaming = False
         self.streaming_partial = ""
+        ui.log("start_request provider=%s model=%s stream=%s"
+               % (provider_id, model, stream))
         self._set_busy(True)
         self._set_status("Contacting %s (%s)..." % (spec["label"], model))
         threading.Thread(
@@ -819,6 +829,31 @@ class _Bridge(object):
         if action == "replace":
             return self._current_doc_ctx().replace_selection(text)
         return self._current_doc_ctx().insert_at_cursor(text)
+
+    def _apply_format_ops(self, ops):
+        doc_ctx = self._current_doc_ctx()
+        if doc_ctx is None:
+            self._set_status("No document is open.")
+            return
+        if cp_format.requires_confirmation(ops):
+            if not ui.confirm(self.ctx, self.frame, "HaiLPER",
+                              "Apply document-wide or page-layout changes?"):
+                self.add_history_line("HaiLPER", "Formatting cancelled.")
+                self._set_status("Formatting cancelled.")
+                return
+        applied, errors = cp_format.apply_ops(doc_ctx, ops)
+        if applied:
+            self.add_history_line(
+                "HaiLPER", "Applied formatting: " + "; ".join(applied) + ".")
+        if errors:
+            self.add_history_line(
+                "HaiLPER", "Some formatting failed: " + "; ".join(errors))
+        if applied:
+            self._set_status("Applied %d formatting change(s)." % len(applied))
+        elif errors:
+            self._set_status("Could not apply formatting: " + "; ".join(errors))
+        else:
+            self._set_status("No formatting changes.")
 
     def on_stop(self):
         self.gen_id += 1
@@ -883,9 +918,10 @@ class _Bridge(object):
 
         text = payload.get("text", "")
 
-        # Tool-like directives: request the document, or edit it directly.
+        # Tool-like directives: request the document, edit it, or format it.
         directive = None
-        if self.pending_action == "chat" or self.config.get("allow_edits"):
+        if (self.pending_action == "chat" or self.config.get("allow_edits")
+                or self.config.get("allow_formatting")):
             directive = cp_prompts.parse_directive(text)
         if (directive and directive[0] == "document"
                 and not self.doc_requested
@@ -908,6 +944,10 @@ class _Bridge(object):
                 ("Applied edit (%s)." % directive[1].get("action"))
                 if applied else "I could not apply that edit.")
             self._set_status("Edit applied." if applied else "Could not apply the edit.")
+            return
+        if (directive and directive[0] == "format"
+                and self.config.get("allow_formatting")):
+            self._apply_format_ops(directive[1])
             return
 
         if self.refining:

@@ -29,6 +29,11 @@ Python packages are required.
   adopt or reject each one.
 - **Direct document editing / reading** – permission-gated; the model can read
   the document on request and apply edits it proposes.
+- **Formatting, styles and layout** (Writer) – permission-gated; the model can
+  apply character and paragraph formatting, existing styles, page margins and
+  orientation, and insert tables, via a structured `{"format": [...]}`
+  directive. Each batch is one undo step and document-wide/page changes are
+  confirmed first.
 - **Per-action options** – format/length, style/length, language/register,
   proofread categories/severity (remembered per action).
 - **Rewrite diff** – compare original vs suggested and Accept/Reject.
@@ -174,6 +179,10 @@ timeout and the system prompt. Two permissions control what the model may do:
 - **Allow HaiLPER to request document contents** (on by default) — in chat the
   model can reply `{"request": "document"}` and HaiLPER will send the document
   and re-ask, so the full text is only used when it is actually needed.
+- **Allow HaiLPER to change formatting, styles and layout** (on by default) —
+  lets the model apply character/paragraph formatting, existing styles, page
+  layout and tables. It is given the document's available style names and is
+  told to only format when you ask.
 - **Apply Rewrite / Proofread as tracked changes** (Writer, on by default) —
   edits arrive as accept/reject tracked changes instead of silent replacements;
   the buttons read **Suggest (tracked)** / **Adopt (tracked)**. *Adopt all*
