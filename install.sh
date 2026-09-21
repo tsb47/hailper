@@ -5,9 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 IDENTIFIER="io.github.rokusaburo.hailper"
 
-# Installing while LibreOffice is running makes unopkg leave extra unpacked
-# copies behind, which LibreOffice then loads as duplicate sidebar panels.
-if pgrep -x soffice.bin >/dev/null 2>&1 || pgrep -x soffice >/dev/null 2>&1; then
+# Installing while the default-profile LibreOffice is running makes unopkg
+# leave extra unpacked copies behind, which LibreOffice then loads as duplicate
+# sidebar panels. Processes using a different -env:UserInstallation are fine.
+if pgrep -af soffice.bin 2>/dev/null | grep -v -- "-env:UserInstallation=" >/dev/null 2>&1; then
   echo "LibreOffice is running. Close it completely before installing." >&2
   exit 1
 fi
