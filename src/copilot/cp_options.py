@@ -195,6 +195,17 @@ class _OptionsBridge(object):
             ),
         )
 
+        y += LINE_H + 4
+        self.model.insertByName(
+            "track_changes",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "track_changes", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Apply Rewrite / Proofread as tracked changes",
+            ),
+        )
+
         y += LINE_H + 8
         self._add_label("system_label", PAD, y, "System prompt:", 105)
         system_height = DLG_H - y - BTN_H - 2 * PAD - 6
@@ -300,6 +311,7 @@ class _OptionsBridge(object):
         self._set_state("allow_edits", self.config.get("allow_edits", False))
         self._set_state("allow_document_access",
                         self.config.get("allow_document_access", True))
+        self._set_state("track_changes", self.config.get("track_changes", True))
         models = list(spec.get("models", []))
         if not models and pid not in self._model_cache:
             base = self._get("base_url").strip()
@@ -343,6 +355,7 @@ class _OptionsBridge(object):
         self.config["system_prompt"] = self._get("system_prompt")
         self.config["allow_edits"] = self._get_state("allow_edits")
         self.config["allow_document_access"] = self._get_state("allow_document_access")
+        self.config["track_changes"] = self._get_state("track_changes")
 
         cp_config.save(self.config)
         self.saved = True

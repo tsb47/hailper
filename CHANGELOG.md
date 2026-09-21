@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Track changes** (Writer): Rewrite and Proofread can be applied as tracked
+  changes so reviewers can accept or reject them. Controlled by
+  *Apply Rewrite / Proofread as tracked changes* in Settings (on by default);
+  the Rewrite button shows **Suggest (tracked)** and the draft review shows
+  **Adopt (tracked)**. *Adopt all* is grouped into a single undo step.
+
 ## [1.0.0] - 2026-09-21
 
 ### Added

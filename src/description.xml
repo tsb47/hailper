@@ -24,9 +24,4 @@ Groq, Mistral, xAI, OpenRouter and many more.</description>
   <icon>
     <default xlink:href="icons/robot-48.png"/>
   </icon>
-  <dependencies>
-    <LibreOffice-minimal-version value="7.6" d:name="LibreOffice 7.6"/>
-  </dependencies>
-  <platform value="linux_x86_64"/>
-  <platform value="linux"/>
 </description>

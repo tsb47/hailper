@@ -520,6 +520,10 @@ class _Bridge(object):
 
         specs = [self.meta.get("primary", ("insert", "Insert"))]
         specs.extend(self.meta.get("buttons", []))
+        if (self.action == "rewrite" and specs
+                and self.config.get("track_changes", True)):
+            key, _label = specs[0]
+            specs[0] = (key, "Suggest (tracked)")
         self.slot_keys = [key for key, _label in specs]
         for slot in range(SLOTS):
             control = self.dialog.getControl("btn_%d" % slot)
@@ -988,8 +992,9 @@ class _Bridge(object):
             self._set_status("No document is open.")
             return
         item = self.suggestions[self.review_index]
+        tracked = self.config.get("track_changes", True)
         if cp_document.replace_first(document, item["original"],
-                                     item["replacement"]):
+                                     item["replacement"], tracked=tracked):
             self.review_fixed += 1
         else:
             self.review_ignored += 1
@@ -1003,10 +1008,12 @@ class _Bridge(object):
             self._set_status("No document is open.")
             return
         adopted = 0
-        for item in self.suggestions:
-            if cp_document.replace_first(document, item["original"],
-                                         item["replacement"]):
-                adopted += 1
+        tracked = self.config.get("track_changes", True)
+        with cp_document.undo_context(document, "HaiLPER proofread"):
+            for item in self.suggestions:
+                if cp_document.replace_first(document, item["original"],
+                                             item["replacement"], tracked=tracked):
+                    adopted += 1
         self.review_fixed += adopted
         self.review_index = len(self.suggestions)
         self._set_status("Adopted %d suggestion(s)." % adopted)
@@ -1036,6 +1043,9 @@ class _Bridge(object):
         self.proposal = text
         labels = [("adopt", "Adopt"), ("reject", "Reject"),
                   ("refine", "Refine"), ("copy", "Copy"), ("close", "Close")]
+        if (self.flow_action == "rewrite"
+                and self.config.get("track_changes", True)):
+            labels[0] = ("adopt", "Adopt (tracked)")
         self.slot_keys = [key for key, _label in labels]
         for index, (_key, label) in enumerate(labels):
             try:
@@ -1087,12 +1097,15 @@ class _Bridge(object):
             self._set_status("No document is open.")
             return
         action = self.flow_action
+        tracked = (action == "rewrite"
+                   and self.config.get("track_changes", True)
+                   and doc_ctx.kind == cp_document.WRITER)
         if action == "continue":
             ok = doc_ctx.insert_at_cursor(self.proposal)
         elif doc_ctx.has_selection():
-            ok = doc_ctx.replace_selection(self.proposal)
+            ok = doc_ctx.replace_selection(self.proposal, tracked=tracked)
         else:
-            ok = doc_ctx.insert_at_cursor(self.proposal)
+            ok = doc_ctx.insert_at_cursor(self.proposal, tracked=tracked)
         message = ("Adopted the %s." % action) if ok \
             else ("Could not apply the %s." % action)
         self.add_history_line("HaiLPER", message)

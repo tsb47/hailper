@@ -1,5 +1,8 @@
 """Read from and write to the active LibreOffice document via UNO."""
 
+from contextlib import contextmanager
+from contextlib import nullcontext
+
 import uno
 from com.sun.star.text.ControlCharacter import PARAGRAPH_BREAK
 
@@ -29,6 +32,60 @@ def _first_range(selection):
     except Exception:
         pass
     return selection
+
+
+@contextmanager
+def record_changes(doc):
+    """Enable Writer change tracking for the duration of the block.
+
+    The previous RecordChanges state is restored afterwards, so the user's own
+    setting is never left switched on.
+    """
+    previous = None
+    if _supports(doc, "com.sun.star.text.TextDocument"):
+        try:
+            previous = doc.getPropertyValue("RecordChanges")
+        except Exception:
+            previous = None
+        try:
+            doc.setPropertyValue("RecordChanges", True)
+        except Exception:
+            previous = None
+    try:
+        yield
+    finally:
+        if previous is not None:
+            try:
+                doc.setPropertyValue("RecordChanges", previous)
+            except Exception:
+                pass
+
+
+@contextmanager
+def undo_context(doc, title="HaiLPER"):
+    """Group the enclosed edits into a single undo step when possible."""
+    manager = None
+    try:
+        supplier = doc.queryInterface(
+            uno.getTypeByName("com.sun.star.document.XUndoManagerSupplier")
+        )
+        if supplier is not None:
+            manager = supplier.getUndoManager()
+    except Exception:
+        manager = None
+    try:
+        if manager is not None:
+            manager.enterUndoContext(title)
+    except Exception:
+        manager = None
+    try:
+        yield
+    finally:
+        if manager is not None:
+            try:
+                manager.leaveUndoContext()
+            except Exception:
+                pass
 
 
 def detect_kind(doc):
@@ -76,7 +133,7 @@ def create_document_with_text(ctx, text, activate=True):
         return None
 
 
-def replace_first(document, original, replacement):
+def replace_first(document, original, replacement, tracked=False):
     """Replace the first occurrence of original in a Writer document."""
     if not original:
         return False
@@ -87,7 +144,8 @@ def replace_first(document, original, replacement):
         found = document.findFirst(descriptor)
         if found is None:
             return False
-        found.setString(replacement)
+        with (record_changes(document) if tracked else nullcontext()):
+            found.setString(replacement)
         return True
     except Exception:
         return False
@@ -227,13 +285,14 @@ class DocumentContext(object):
         cursor = text.createTextCursorByRange(text_range.getStart())
         insert_multiline(text, cursor, value)
 
-    def replace_selection(self, value):
+    def replace_selection(self, value, tracked=False):
         if self.kind == WRITER:
-            if self.has_selection() and self.selection is not None:
-                self.selection.setString("")
-                self._writer_insert_multiline(self.selection, value)
-            else:
-                self.insert_at_cursor(value)
+            with (record_changes(self.doc) if tracked else nullcontext()):
+                if self.has_selection() and self.selection is not None:
+                    self.selection.setString("")
+                    self._writer_insert_multiline(self.selection, value)
+                else:
+                    self.insert_at_cursor(value)
             return True
         if self.kind == CALC:
             return self._calc_write(value, overwrite=True)
@@ -241,12 +300,13 @@ class DocumentContext(object):
             return self._impress_write(value, overwrite=True)
         return False
 
-    def insert_at_cursor(self, value):
+    def insert_at_cursor(self, value, tracked=False):
         if self.kind == WRITER:
             cursor = self.writer_view_cursor()
             if cursor is None:
                 return False
-            self._writer_insert_multiline(cursor, value)
+            with (record_changes(self.doc) if tracked else nullcontext()):
+                self._writer_insert_multiline(cursor, value)
             return True
         if self.kind == CALC:
             return self._calc_write(value, overwrite=False)
