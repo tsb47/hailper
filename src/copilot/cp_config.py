@@ -43,6 +43,7 @@ DEFAULTS = {
     "allow_edits": True,
     "allow_document_access": True,
     "track_changes": True,
+    "remember_keys": True,
 }
 
 

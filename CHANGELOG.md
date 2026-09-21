@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   *Apply Rewrite / Proofread as tracked changes* in Settings (on by default);
   the Rewrite button shows **Suggest (tracked)** and the draft review shows
   **Adopt (tracked)**. *Adopt all* is grouped into a single undo step.
+- Settings: **Test connection** and **Load models** buttons, and a
+  **Remember API key on this computer** option (off = session-only, never
+  written to disk).
 
 ## [1.0.0] - 2026-09-21
 

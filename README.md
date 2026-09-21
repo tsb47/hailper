@@ -173,10 +173,21 @@ timeout and the system prompt. Two permissions control what the model may do:
   `{"edit": {"action": "append", "text": "..."}}` (at the end).
 - **Allow HaiLPER to request document contents** (on by default) — in chat the
   model can reply `{"request": "document"}` and HaiLPER will send the document
-  and re-ask, so the full text is only used when it is actually needed. Settings are stored in
-`~/.config/hailper/config.json` with `0600` permissions (keys are
-plain text — treat it as a credential file). The config from the previous
-`~/.config/libreoffice-copilot/` location is migrated automatically on first run.
+  and re-ask, so the full text is only used when it is actually needed.
+- **Apply Rewrite / Proofread as tracked changes** (Writer, on by default) —
+  edits arrive as accept/reject tracked changes instead of silent replacements;
+  the buttons read **Suggest (tracked)** / **Adopt (tracked)**. *Adopt all*
+  becomes a single undo step.
+- **Remember API key on this computer** — turn off to keep the key only in
+  memory for the session; it is then never written to disk.
+
+Use **Test connection** to send a one-word round trip and **Load models** to
+populate the model list from the provider.
+
+Settings are stored in `~/.config/hailper/config.json` with `0600` permissions
+(keys are plain text — treat it as a credential file). The config from the
+previous `~/.config/libreoffice-copilot/` location is migrated automatically on
+first run.
 
 Provider hints: DeepSeek `https://api.deepseek.com/v1`; Qwen
 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`; Grok

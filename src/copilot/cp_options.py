@@ -11,7 +11,7 @@ import cp_providers
 
 
 DLG_W = 560
-DLG_H = 440
+DLG_H = 472
 PAD = 10
 LINE_H = 18
 BTN_H = 24
@@ -140,6 +140,33 @@ class _OptionsBridge(object):
         )
 
         y += step
+        self._add_label("conn_label", PAD, y, "Connection:", 105)
+        self.model.insertByName(
+            "btn_test",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_test",
+                PositionX=field_x, PositionY=y, Width=118, Height=BTN_H,
+                Label="Test connection",
+            ),
+        )
+        self.model.insertByName(
+            "btn_models",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_models",
+                PositionX=field_x + 126, PositionY=y, Width=104, Height=BTN_H,
+                Label="Load models",
+            ),
+        )
+        self.model.insertByName(
+            "test_status",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlFixedText",
+                "test_status", PositionX=field_x + 238,
+                PositionY=y + 4, Width=field_w - 238, Height=LINE_H, Label="",
+            ),
+        )
+
+        y += step
         self._add_label("temp_label", PAD, y, "Temperature:", 105)
         self.model.insertByName(
             "temperature",
@@ -205,6 +232,16 @@ class _OptionsBridge(object):
                 Label="Apply Rewrite / Proofread as tracked changes",
             ),
         )
+        y += LINE_H + 4
+        self.model.insertByName(
+            "remember_keys",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "remember_keys", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Remember API key on this computer (stored in plain text)",
+            ),
+        )
 
         y += LINE_H + 8
         self._add_label("system_label", PAD, y, "System prompt:", 105)
@@ -257,6 +294,12 @@ class _OptionsBridge(object):
         )
         self.dialog.getControl("btn_cancel").addActionListener(
             _ActionListener(lambda e: self._cancel())
+        )
+        self.dialog.getControl("btn_test").addActionListener(
+            _ActionListener(lambda e: self._test_connection())
+        )
+        self.dialog.getControl("btn_models").addActionListener(
+            _ActionListener(lambda e: self._load_models())
         )
 
         self._load_provider()
@@ -312,6 +355,7 @@ class _OptionsBridge(object):
         self._set_state("allow_document_access",
                         self.config.get("allow_document_access", True))
         self._set_state("track_changes", self.config.get("track_changes", True))
+        self._set_state("remember_keys", self.config.get("remember_keys", True))
         models = list(spec.get("models", []))
         if not models and pid not in self._model_cache:
             base = self._get("base_url").strip()
@@ -330,6 +374,47 @@ class _OptionsBridge(object):
             )
         except Exception:
             pass
+
+    def _set_test_status(self, message):
+        try:
+            self.dialog.getControl("test_status").setText(message)
+        except Exception:
+            pass
+
+    def _load_models(self):
+        pid = self._selected_provider()
+        key = self._get("api_key").strip()
+        base = self._get("base_url").strip()
+        if not base:
+            self._set_test_status("Set a base URL first.")
+            return
+        self._set_test_status("Loading models\u2026")
+        models = cp_providers.list_models(pid, key, base, timeout=12)
+        self._model_cache[pid] = models
+        try:
+            _set_string_list(self.dialog.getControl("model").getModel(), models)
+        except Exception:
+            pass
+        self._set_test_status("%d model(s) found." % len(models) if models
+                              else "No models found.")
+
+    def _test_connection(self):
+        pid = self._selected_provider()
+        spec = cp_providers.PROVIDERS.get(pid, {})
+        model = self._get("model").strip() or spec.get("default_model", "")
+        base = self._get("base_url").strip()
+        key = self._get("api_key").strip()
+        self._set_test_status("Testing\u2026")
+        try:
+            reply = cp_providers.chat(
+                pid, key, model, base,
+                [{"role": "user",
+                  "content": "Reply with the single word: pong"}],
+                temperature=0, max_tokens=8, timeout=20)
+            text = (reply or "").strip()
+            self._set_test_status("OK: %s" % (text[:40] or "connected"))
+        except Exception as error:
+            self._set_test_status(str(error)[:80])
 
     def _save(self):
         pid = self._selected_provider()
@@ -356,8 +441,16 @@ class _OptionsBridge(object):
         self.config["allow_edits"] = self._get_state("allow_edits")
         self.config["allow_document_access"] = self._get_state("allow_document_access")
         self.config["track_changes"] = self._get_state("track_changes")
+        self.config["remember_keys"] = self._get_state("remember_keys")
 
-        cp_config.save(self.config)
+        to_save = self.config
+        if not self.config["remember_keys"]:
+            # Keep the key in memory for this session, but never write it out.
+            import copy
+            to_save = copy.deepcopy(self.config)
+            for provider_entry in to_save.get("providers", {}).values():
+                provider_entry["api_key"] = ""
+        cp_config.save(to_save)
         self.saved = True
         self._close()
 
