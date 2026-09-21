@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="Addons" oor:package="org.openoffice.Office">
+  <node oor:name="AddonUI">
+
+    <!-- ================= Command icons ================= -->
+    <node oor:name="Images">
+      <node oor:name="io.github.rokusaburo.hailper.image.chat" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:chat</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/chat-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/chat-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.summarize" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:summarize</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/summarize-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/summarize-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.rewrite" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:rewrite</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/rewrite-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/rewrite-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.continue" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:continue</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/continue-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/continue-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.translate" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:translate</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/translate-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/translate-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.proofread" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:proofread</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/proofread-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/proofread-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.custom" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:custom</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/custom-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/custom-26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="io.github.rokusaburo.hailper.image.options" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>io.github.rokusaburo.hailper:options</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/options-16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>vnd.sun.star.extension://io.github.rokusaburo.hailper/icons/options-26.png</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+
+    <!-- ================= Menu bar ================= -->
+    <node oor:name="OfficeMenuBar">
+      <node oor:name="io.github.rokusaburo.hailper" oor:op="replace">
+        <prop oor:name="Title" oor:type="xs:string">
+          <value xml:lang="en-US">HaiLPER</value>
+        </prop>
+        <node oor:name="Submenu">
+          <node oor:name="m_chat" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:chat</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Chat with AI…</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_summarize" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:summarize</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Summarize</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_rewrite" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:rewrite</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Rewrite / Improve…</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_continue" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:continue</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Continue Writing</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_translate" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:translate</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Translate…</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_proofread" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:proofread</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Proofread / Review</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_custom" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:custom</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Ask About Selection…</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="m_sep" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>private:separator</value>
+            </prop>
+          </node>
+          <node oor:name="m_options" oor:op="replace">
+            <prop oor:name="URL" oor:type="xs:string">
+              <value>io.github.rokusaburo.hailper:options</value>
+            </prop>
+            <prop oor:name="Title" oor:type="xs:string">
+              <value xml:lang="en-US">Settings…</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+        </node>
+      </node>
+    </node>
+
+    <!-- ================= Toolbar ================= -->
+    <node oor:name="OfficeToolBar">
+      <node oor:name="io.github.rokusaburo.hailper.toolbar" oor:op="replace">
+        <node oor:name="t_chat" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:chat</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Chat with AI…</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="t_summarize" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:summarize</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Summarize</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="t_rewrite" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:rewrite</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Rewrite / Improve…</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+
+    <!-- ============= NotebookBar (Tabbed / Compact UI) ============= -->
+    <node oor:name="OfficeNotebookBar">
+      <node oor:name="*.OfficeNotebookBar" oor:op="replace">
+        <node oor:name="nb_chat" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:chat</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Chat with AI</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_summarize" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:summarize</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Summarize</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_rewrite" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:rewrite</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Rewrite</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_continue" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:continue</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Continue</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_translate" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:translate</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Translate</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_proofread" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:proofread</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Proofread</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_custom" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:custom</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Ask Selection</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+        <node oor:name="nb_options" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>io.github.rokusaburo.hailper:options</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en-US">Settings</value>
+          </prop>
+          <prop oor:name="Style" oor:type="xs:string">
+            <value>icontext</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string">
+            <value>_self</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+
+  </node>
+</oor:component-data>

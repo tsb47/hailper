@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="Jobs" oor:package="org.openoffice.Office">
+  <node oor:name="Jobs">
+    <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+      <prop oor:name="Service" oor:type="xs:string">
+        <value>io.github.rokusaburo.hailper.ContextMenuJob</value>
+      </prop>
+      <prop oor:name="Context" oor:type="xs:string">
+        <value/>
+      </prop>
+    </node>
+  </node>
+  <node oor:name="Events">
+    <node oor:name="onStartApp" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onLoad" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onNew" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onViewCreated" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onDocumentOpened" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onCreate" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="onSave" oor:op="replace">
+      <node oor:name="JobList">
+        <node oor:name="io.github.rokusaburo.hailper.ContextMenuJob" oor:op="replace">
+          <prop oor:name="AdminTime" oor:type="xs:string">
+            <value>2024-01-01T00:00:00+00:00</value>
+          </prop>
+          <prop oor:name="UserTime" oor:type="xs:string">
+            <value>2003-01-01T00:00:00+00:00</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+  </node>
+</oor:component-data>

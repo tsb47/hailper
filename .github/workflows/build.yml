@@ -1,0 +1,45 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate XML and Python
+        run: |
+          python3 -c "import glob, xml.dom.minidom as m; [m.parse(f) for f in glob.glob('src/*.xcu') + glob.glob('src/*.xml')]"
+          python3 -m py_compile src/copilot/*.py
+
+      - name: Build .oxt
+        run: ./build.sh
+
+      - name: Checksums
+        run: sha256sum dist/*.oxt > dist/SHA256SUMS && cat dist/SHA256SUMS
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HaiLPER-oxt
+          path: |
+            dist/*.oxt
+            dist/SHA256SUMS
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.oxt
+            dist/SHA256SUMS

@@ -1,0 +1,12 @@
+# Build output
+dist/
+*.oxt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Editors / OS
+.DS_Store
+*.swp

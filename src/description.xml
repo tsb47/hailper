@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<description xmlns="http://openoffice.org/extensions/description/2006"
+             xmlns:d="http://openoffice.org/extensions/description/2006"
+             xmlns:xlink="http://www.w3.org/1999/xlink">
+  <version value="1.0.0"/>
+  <identifier value="io.github.rokusaburo.hailper"/>
+  <display-name>
+    <name lang="en">HaiLPER</name>
+  </display-name>
+  <publisher>
+    <name xlink:href="https://github.com/tsb47" lang="en">Rokusaburo</name>
+  </publisher>
+  <extension-description>
+    <default>
+      <name lang="en">HaiLPER for LibreOffice</name>
+      <description lang="en">An AI writing assistant docked in the LibreOffice
+sidebar. Read, analyse, edit and extend your documents with chat, summarise,
+rewrite, continue, translate and a step-through proofreader that can apply
+changes as tracked changes. Works with local Ollama / LM Studio / llama.cpp and
+cloud providers including OpenAI, Anthropic Claude, Google Gemini, DeepSeek,
+Groq, Mistral, xAI, OpenRouter and many more.</description>
+    </default>
+  </extension-description>
+  <icon>
+    <default xlink:href="icons/robot-48.png"/>
+  </icon>
+  <dependencies>
+    <LibreOffice-minimal-version value="7.6" d:name="LibreOffice 7.6"/>
+  </dependencies>
+  <platform value="linux_x86_64"/>
+  <platform value="linux"/>
+</description>
