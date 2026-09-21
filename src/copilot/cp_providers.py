@@ -675,6 +675,225 @@ def chat(provider_id, api_key, model, base_url, messages, system="",
         raise ProviderError("%s: %s" % (type(error).__name__, error))
 
 
+def _open_stream(url, payload, headers, timeout):
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(url, data=body, method="POST")
+    request.add_header("Content-Type", "application/json")
+    request.add_header("Accept", "text/event-stream")
+    for key, value in headers.items():
+        request.add_header(key, value)
+    try:
+        return urllib.request.urlopen(request, timeout=timeout)
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", "replace")
+        raise ProviderError(_friendly_http_error(error.code, detail))
+    except urllib.error.URLError as error:
+        raise ProviderError("Could not reach the server: %s" % error.reason)
+    except socket.timeout:
+        raise ProviderError("The request timed out.")
+
+
+def _sse_objects(response):
+    """Yield the JSON payloads of an SSE stream, skipping [DONE]."""
+    for raw in response:
+        line = raw.decode("utf-8", "replace").strip()
+        if not line or not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if data == "[DONE]":
+            break
+        try:
+            yield json.loads(data)
+        except ValueError:
+            continue
+
+
+def _stream_openai(base_url, api_key, model, messages, system, temperature,
+                   max_tokens, timeout, on_chunk):
+    url = base_url.rstrip("/") + "/chat/completions"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+    payload = {
+        "model": model,
+        "messages": _openai_messages(messages, system),
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    parts = []
+    with _open_stream(url, payload, headers, timeout) as response:
+        for obj in _sse_objects(response):
+            try:
+                delta = obj["choices"][0].get("delta", {}).get("content")
+            except (KeyError, IndexError, TypeError):
+                delta = None
+            if delta:
+                parts.append(delta)
+                on_chunk(delta)
+    return "".join(parts)
+
+
+def _stream_azure(base_url, api_key, model, messages, system, temperature,
+                  max_tokens, timeout, on_chunk):
+    url = base_url.rstrip("/") + "/chat/completions"
+    if "api-version=" not in url:
+        url += ("&" if "?" in url else "?") + "api-version=2024-10-21"
+    headers = {}
+    if api_key:
+        headers["api-key"] = api_key
+    payload = {
+        "model": model,
+        "messages": _openai_messages(messages, system),
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    parts = []
+    with _open_stream(url, payload, headers, timeout) as response:
+        for obj in _sse_objects(response):
+            try:
+                delta = obj["choices"][0].get("delta", {}).get("content")
+            except (KeyError, IndexError, TypeError):
+                delta = None
+            if delta:
+                parts.append(delta)
+                on_chunk(delta)
+    return "".join(parts)
+
+
+def _stream_anthropic(base_url, api_key, model, messages, system, temperature,
+                      max_tokens, timeout, on_chunk):
+    url = base_url.rstrip("/") + "/messages"
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    payload = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": messages,
+        "stream": True,
+    }
+    if system:
+        payload["system"] = system
+    parts = []
+    with _open_stream(url, payload, headers, timeout) as response:
+        for obj in _sse_objects(response):
+            if obj.get("type") == "content_block_delta":
+                text = obj.get("delta", {}).get("text")
+                if text:
+                    parts.append(text)
+                    on_chunk(text)
+    return "".join(parts)
+
+
+def _stream_gemini(base_url, api_key, model, messages, system, temperature,
+                   max_tokens, timeout, on_chunk):
+    url = "%s/models/%s:streamGenerateContent?alt=sse" % (
+        base_url.rstrip("/"), model)
+    headers = {"x-goog-api-key": api_key}
+    contents = []
+    for message in messages:
+        role = "user" if message.get("role") == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": message.get("content", "")}]})
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
+    }
+    if system:
+        payload["systemInstruction"] = {"parts": [{"text": system}]}
+    parts = []
+    with _open_stream(url, payload, headers, timeout) as response:
+        for obj in _sse_objects(response):
+            for candidate in obj.get("candidates", []) or []:
+                for part in candidate.get("content", {}).get("parts", []) or []:
+                    text = part.get("text")
+                    if text:
+                        parts.append(text)
+                        on_chunk(text)
+    return "".join(parts)
+
+
+def _stream_ollama(base_url, api_key, model, messages, system, temperature,
+                   max_tokens, timeout, on_chunk):
+    url = base_url.rstrip("/") + "/api/chat"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+    payload = {
+        "model": model,
+        "messages": _openai_messages(messages, system),
+        "stream": True,
+        "options": {"temperature": temperature, "num_predict": max_tokens},
+    }
+    parts = []
+    with _open_stream(url, payload, headers, timeout) as response:
+        for raw in response:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            text = (obj.get("message") or {}).get("content")
+            if text:
+                parts.append(text)
+                on_chunk(text)
+            if obj.get("done"):
+                break
+    return "".join(parts)
+
+
+_STREAM_HANDLERS = {
+    "openai": _stream_openai,
+    "azure": _stream_azure,
+    "anthropic": _stream_anthropic,
+    "gemini": _stream_gemini,
+    "ollama": _stream_ollama,
+}
+
+
+def chat_stream(provider_id, api_key, model, base_url, messages, system="",
+                temperature=0.3, max_tokens=1024, timeout=120, on_chunk=None):
+    """Like chat() but calls on_chunk(delta) as text arrives.
+
+    Falls back to a single non-streaming response if streaming is unavailable.
+    Returns the full assistant text.
+    """
+    spec = PROVIDERS.get(provider_id)
+    if spec is None:
+        raise ProviderError("Unknown provider: %s" % provider_id)
+    base_url = (base_url or spec["base_url"]).strip()
+    if not base_url:
+        raise ProviderError("No base URL configured for '%s'." % provider_id)
+    model = (model or spec["default_model"]).strip()
+    if not model:
+        raise ProviderError("No model configured for '%s'." % provider_id)
+    if spec["requires_key"] and not api_key:
+        raise ProviderError(
+            "No API key configured for %s. Open HaiLPER > Settings." % spec["label"])
+
+    handler = _STREAM_HANDLERS.get(spec["protocol"])
+    if handler is None or on_chunk is None:
+        reply = chat(provider_id, api_key, model, base_url, messages, system,
+                     temperature, max_tokens, timeout)
+        if on_chunk is not None:
+            on_chunk(reply)
+        return reply
+    try:
+        return handler(base_url, api_key, model, messages, system,
+                       temperature, max_tokens, timeout, on_chunk)
+    except ProviderError:
+        raise
+    except socket.timeout:
+        raise ProviderError("The request timed out after %ss." % timeout)
+    except Exception as error:  # noqa: BLE001
+        raise ProviderError("%s: %s" % (type(error).__name__, error))
+
+
 def list_models(provider_id, api_key="", base_url="", timeout=15):
     """Best-effort model listing; returns [] when unsupported."""
     spec = PROVIDERS.get(provider_id)

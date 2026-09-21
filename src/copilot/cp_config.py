@@ -44,6 +44,7 @@ DEFAULTS = {
     "allow_document_access": True,
     "track_changes": True,
     "remember_keys": True,
+    "stream": True,
 }
 
 

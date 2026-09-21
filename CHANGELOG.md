@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Settings: **Test connection** and **Load models** buttons, and a
   **Remember API key on this computer** option (off = session-only, never
   written to disk).
+- **Streaming responses** for OpenAI-compatible, Ollama, Anthropic and Gemini
+  providers (toggle in Settings; proofread stays buffered so the JSON is parsed
+  once complete).
+
+### Fixed
+
+- Log file path now follows the new config directory
+  (`~/.config/hailper/hailper.log`).
 
 ## [1.0.0] - 2026-09-21
 

@@ -180,6 +180,9 @@ timeout and the system prompt. Two permissions control what the model may do:
   becomes a single undo step.
 - **Remember API key on this computer** — turn off to keep the key only in
   memory for the session; it is then never written to disk.
+- **Stream responses as they are generated** — tokens appear in the transcript
+  while the model is still writing (Proofread stays buffered so its JSON is
+  parsed once complete).
 
 Use **Test connection** to send a one-word round trip and **Load models** to
 populate the model list from the provider.

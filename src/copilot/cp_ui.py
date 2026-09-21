@@ -16,7 +16,7 @@ def log(message):
 
     try:
         path = os.path.join(
-            os.path.expanduser("~"), ".config", "libreoffice-copilot", "copilot.log"
+            os.path.expanduser("~"), ".config", "hailper", "hailper.log"
         )
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:

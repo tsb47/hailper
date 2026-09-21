@@ -138,6 +138,8 @@ class _Bridge(object):
         self.flow_doc_ctx = None
         self.proposal = ""
         self.refining = False
+        self.streaming = False
+        self.streaming_partial = ""
 
         self.async_callback = ui.smgr(ctx).createInstanceWithContext(
             "com.sun.star.awt.AsyncCallback", ctx
@@ -545,6 +547,10 @@ class _Bridge(object):
                 indented = "\n".join("  " + line
                                      for line in message.split("\n"))
                 blocks.append("HaiLPER\n%s" % indented)
+        if self.streaming_partial:
+            indented = "\n".join("  " + line
+                                 for line in self.streaming_partial.split("\n"))
+            blocks.append("HaiLPER\n%s" % indented)
         separator = "\n\n" + ("\u00b7 " * 18).strip() + "\n\n"
         self.result_text = separator.join(blocks).strip()
         ui.set_text(self.dialog, "result", self.result_text)
@@ -720,13 +726,17 @@ class _Bridge(object):
         temperature = float(self.config.get("temperature", 0.3))
         max_tokens = int(self.config.get("max_tokens", 1024))
         timeout = int(self.config.get("timeout", 120))
+        stream = bool(self.config.get("stream", True)) \
+            and self.pending_action != "proofread"
         self.gen_id += 1
+        self.streaming = False
+        self.streaming_partial = ""
         self._set_busy(True)
         self._set_status("Contacting %s (%s)..." % (spec["label"], model))
         threading.Thread(
             target=self._worker,
             args=(self.gen_id, provider_id, api_key, model, base_url, messages,
-                  system, temperature, max_tokens, timeout),
+                  system, temperature, max_tokens, timeout, stream),
             daemon=True,
         ).start()
 
@@ -751,12 +761,27 @@ class _Bridge(object):
         self._set_status("Cancelled.")
 
     def _worker(self, gen_id, provider_id, api_key, model, base_url, messages, system,
-                temperature, max_tokens, timeout):
+                temperature, max_tokens, timeout, stream=False):
+        def on_chunk(delta):
+            if gen_id != self.gen_id:
+                raise RuntimeError("cancelled")
+            try:
+                self.async_callback.addCallback(
+                    self.callback_object, ui.payload(delta=delta, gen=gen_id))
+            except Exception:
+                pass
+
         try:
-            reply = cp_providers.chat(
-                provider_id, api_key, model, base_url, messages, system,
-                temperature, max_tokens, timeout,
-            )
+            if stream:
+                reply = cp_providers.chat_stream(
+                    provider_id, api_key, model, base_url, messages, system,
+                    temperature, max_tokens, timeout, on_chunk,
+                )
+            else:
+                reply = cp_providers.chat(
+                    provider_id, api_key, model, base_url, messages, system,
+                    temperature, max_tokens, timeout,
+                )
             payload = ui.payload(ok=True, text=reply, gen=gen_id)
         except Exception as error:  # noqa: BLE001
             payload = ui.payload(ok=False, error=str(error), gen=gen_id)
@@ -771,6 +796,17 @@ class _Bridge(object):
         payload = ui.read_payload(data)
         if payload.get("gen") != self.gen_id:
             return
+        delta = payload.get("delta")
+        if delta is not None:
+            if not self.streaming:
+                self.streaming = True
+                self.streaming_partial = ""
+            self.streaming_partial += delta
+            self._refresh_history_view()
+            self._set_status("Receiving\u2026")
+            return
+        self.streaming = False
+        self.streaming_partial = ""
         ui.log("on_result ok=%s error=%r"
                % (payload.get("ok"), payload.get("error")))
         self._set_busy(False)

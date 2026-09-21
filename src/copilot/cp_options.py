@@ -11,7 +11,7 @@ import cp_providers
 
 
 DLG_W = 560
-DLG_H = 472
+DLG_H = 500
 PAD = 10
 LINE_H = 18
 BTN_H = 24
@@ -242,6 +242,16 @@ class _OptionsBridge(object):
                 Label="Remember API key on this computer (stored in plain text)",
             ),
         )
+        y += LINE_H + 4
+        self.model.insertByName(
+            "stream",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "stream", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Stream responses as they are generated",
+            ),
+        )
 
         y += LINE_H + 8
         self._add_label("system_label", PAD, y, "System prompt:", 105)
@@ -356,6 +366,7 @@ class _OptionsBridge(object):
                         self.config.get("allow_document_access", True))
         self._set_state("track_changes", self.config.get("track_changes", True))
         self._set_state("remember_keys", self.config.get("remember_keys", True))
+        self._set_state("stream", self.config.get("stream", True))
         models = list(spec.get("models", []))
         if not models and pid not in self._model_cache:
             base = self._get("base_url").strip()
@@ -442,6 +453,7 @@ class _OptionsBridge(object):
         self.config["allow_document_access"] = self._get_state("allow_document_access")
         self.config["track_changes"] = self._get_state("track_changes")
         self.config["remember_keys"] = self._get_state("remember_keys")
+        self.config["stream"] = self._get_state("stream")
 
         to_save = self.config
         if not self.config["remember_keys"]:
