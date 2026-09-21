@@ -187,6 +187,19 @@ class TestUsage(unittest.TestCase):
         self.assertEqual(cp_usage.cost("ollama", "x", {"input": 999, "output": 999}), 0.0)
         self.assertTrue(cp_usage.is_local("ollama"))
 
+    def test_format_line(self):
+        line = cp_usage.format_line(
+            "deepseek", "deepseek-chat", {"input": 1000, "output": 500},
+            {"tokens": 2000, "cost": 0.01}, 64000)
+        self.assertIn("tok", line)
+        self.assertIn("ctx", line)
+
+    def test_format_local_line(self):
+        line = cp_usage.format_line(
+            "ollama", "llama3.2:3b", {"input": 10, "output": 5},
+            {"tokens": 15, "cost": 0.0}, 8192)
+        self.assertIn("local", line)
+
 
 class TestPersonas(unittest.TestCase):
     def test_builtins(self):

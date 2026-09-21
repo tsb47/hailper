@@ -4,6 +4,14 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-09-22
+
+### Fixed
+
+- Starting a new chat now begins a fresh saved conversation instead of
+  appending to the previous one.
+- Made the starter-prompt menu's parent window more robust across UI backends.
+
 ## [1.2.0] - 2026-09-22
 
 ### Added

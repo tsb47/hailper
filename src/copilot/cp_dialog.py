@@ -593,7 +593,14 @@ class _Bridge(object):
                 menu.insertItem(index + 1, text[:60], 0, 0)
             control = self.dialog.getControl("starters_btn")
             pos = control.getPosSize()
-            chosen = menu.execute(control.getPeer(), pos.X, pos.Y + pos.Height, 0)
+            parent = None
+            try:
+                parent = control.getPeer()
+            except Exception:
+                parent = None
+            if parent is None:
+                parent = self.dialog.getPeer()
+            chosen = menu.execute(parent, pos.X, pos.Y + pos.Height, 0)
             if chosen and 1 <= chosen <= len(starters):
                 ui.set_text(self.dialog, "instruction", starters[chosen - 1])
                 try:
@@ -1645,6 +1652,7 @@ class _Bridge(object):
     def on_clear(self):
         self.history = []
         self.result_text = ""
+        self.conversation_id = None
         ui.set_text(self.dialog, "result", "")
         ui.set_text(self.dialog, "instruction", "")
         self.set_action("chat")
