@@ -31,7 +31,8 @@ LINE_H = 10
 BTN_H = 13
 RESULT_H = 90
 RESULT_MIN = 44
-RESULT_MAX = 100
+RESULT_MAX = 400
+RESULT_CHROME_PX = 150
 FONT_H = 8
 MAP_PIXEL = 7
 POS_FLAGS = 3  # com.sun.star.awt.PosSize.X | PosSize.Y
@@ -47,12 +48,12 @@ QUICK_ACTIONS = [
     ("explain", "Explain"),
 ]
 
-_ICON_URL = ("vnd.sun.star.extension://io.github.rokusaburo.hailper/"
-             "icons/%s-22%s.png")
+_ICON_BASE = ("vnd.sun.star.extension://io.github.rokusaburo.hailper/"
+              "icons/%s.png")
 
 
 def _mode_icon(action, active):
-    return _ICON_URL % (action, "-on" if active else "")
+    return _ICON_BASE % ("%s-22%s" % (action, "-on" if active else ""))
 
 _panel = None
 
@@ -141,6 +142,7 @@ class _Bridge(object):
         self.refining = False
         self.streaming = False
         self.streaming_partial = ""
+        self.model_picker_visible = False
 
         self.async_callback = ui.smgr(ctx).createInstanceWithContext(
             "com.sun.star.awt.AsyncCallback", ctx
@@ -244,6 +246,10 @@ class _Bridge(object):
         self.model.insertByName("model_choice", model_choice)
         add("com.sun.star.awt.UnoControlFixedText", "result_label",
             PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="Result:")
+        add("com.sun.star.awt.UnoControlButton", "model_toggle",
+            PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
+            ImageURL=_ICON_BASE % "options-16.png",
+            HelpText="Show / hide the model picker")
         add("com.sun.star.awt.UnoControlEdit", "result",
             PositionX=0, PositionY=0, Width=content_w, Height=RESULT_H,
             MultiLine=True, ReadOnly=True, VScroll=True, HScroll=False)
@@ -272,6 +278,11 @@ class _Bridge(object):
         try:
             self.dialog.getControl("model_choice").addItemListener(
                 ui.ItemListener(lambda event: self.on_model_changed()))
+        except Exception:
+            pass
+        try:
+            self.dialog.getControl("model_toggle").addActionListener(
+                ui.ActionListener(lambda event: self.on_toggle_model()))
         except Exception:
             pass
 
@@ -322,13 +333,18 @@ class _Bridge(object):
         if getattr(self, "flow", None):
             self._relayout_flow(controls_ready)
             return
+        show_model = bool(getattr(self, "model_picker_visible", False))
         if controls_ready:
             self._ensure_scale()
-        if controls_ready:
-            for name in ("instruction", "generate", "provider_label",
-                         "model_choice", "result_label", "result", "status"):
+            for name in ("instruction", "generate", "result_label",
+                         "result", "status", "model_toggle"):
                 try:
                     self.dialog.getControl(name).setVisible(True)
+                except Exception:
+                    pass
+            for name in ("provider_label", "model_choice"):
+                try:
+                    self.dialog.getControl(name).setVisible(show_model)
                 except Exception:
                     pass
             for index in range(len(QUICK_ACTIONS)):
@@ -355,19 +371,26 @@ class _Bridge(object):
                     PAD + 50, y, content_w - 50, LINE_H + 3)
                 y += LINE_H + 5
 
-        # Conversation transcript, with the input below it (chat layout).
-        positions["result_label"] = (PAD, y, content_w, LINE_H)
+        # Conversation header, with the model-picker toggle at the right.
+        positions["result_label"] = (PAD, y, content_w - 18, LINE_H)
+        positions["model_toggle"] = (PAD + content_w - 16, y - 2, 16, LINE_H + 4)
         y += LINE_H + 2
         result_y = y
-        fixed_below = (28 + (BTN_H + 4) + (LINE_H + 2) + (LINE_H + 4)
-                       + (2 * BTN_H + 2) + PAD)
+
+        # Everything below the transcript (input, send, status, buttons) plus
+        # the optional model row; the transcript gets everything else so the
+        # buttons can never be pushed off the bottom.
+        below = (28 + (BTN_H + 4) + (LINE_H + 4) + (2 * BTN_H + 2) + PAD)
+        if show_model:
+            below += LINE_H + 4
+
         scale = getattr(self, "scale", 1.0) or 1.0
         result_h = RESULT_H
         available = getattr(self, "available_px", 0)
         if available:
+            budget = max(RESULT_MIN, (available - RESULT_CHROME_PX) / scale)
             result_h = max(RESULT_MIN,
-                           min(RESULT_MAX,
-                               (available / scale) - result_y - fixed_below - 60))
+                           min(RESULT_MAX, budget - result_y - below))
         positions["result"] = (PAD, result_y, content_w, result_h)
         y = result_y + result_h + 4
 
@@ -375,9 +398,10 @@ class _Bridge(object):
         y += 28
         positions["generate"] = (PAD, y, content_w, BTN_H + 2)
         y += BTN_H + 4
-        positions["provider_label"] = (PAD, y, 30, LINE_H)
-        positions["model_choice"] = (PAD + 32, y, content_w - 32, LINE_H + 3)
-        y += LINE_H + 4
+        if show_model:
+            positions["provider_label"] = (PAD, y, 30, LINE_H)
+            positions["model_choice"] = (PAD + 32, y, content_w - 32, LINE_H + 3)
+            y += LINE_H + 4
         positions["status"] = (PAD, y, content_w, LINE_H)
         y += LINE_H + 4
         bw = (content_w - 2 * 4) // 3
@@ -449,7 +473,7 @@ class _Bridge(object):
         if not controls_ready:
             return
         for name in ("instruction", "generate",
-                     "provider_label", "model_choice",
+                     "provider_label", "model_choice", "model_toggle",
                      "choice_label_0", "choice_0",
                      "choice_label_1", "choice_1"):
             try:
@@ -487,6 +511,12 @@ class _Bridge(object):
             key = QUICK_ACTIONS[index][0]
             if key != self.action:
                 self.set_action(key)
+
+    def on_toggle_model(self):
+        self.model_picker_visible = not self.model_picker_visible
+        self._relayout(controls_ready=True)
+        self._set_status("Model picker shown." if self.model_picker_visible
+                         else "Model picker hidden.")
 
     def on_model_changed(self):
         model = ui.get_text(self.dialog, "model_choice").strip()

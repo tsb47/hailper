@@ -4,6 +4,16 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-09-21
+
+### Changed
+
+- The conversation transcript now expands to fill the available height so the
+  action buttons stay pinned on screen (with a safety allowance for the deck
+  chrome).
+- The model picker is hidden by default and shown by a small gear button at the
+  top-right of the conversation header, leaving more room for the transcript.
+
 ## [1.0.1] - 2026-09-21
 
 ### Added
