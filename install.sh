@@ -16,10 +16,12 @@ fi
 
 # unopkg refuses to add an already-installed version, so remove first.
 unopkg remove "$IDENTIFIER" >/dev/null 2>&1 || true
+# Remove the pre-rename extension id if it is still installed.
+unopkg remove "org.tom.libreoffice.copilot" >/dev/null 2>&1 || true
 
 # Purge any leftover unpacked copies from earlier installs.
 CACHE="${HOME}/.config/libreoffice/4/user/uno_packages/cache/uno_packages"
-rm -rf "$CACHE"/*/AICopilot.oxt "$CACHE"/*/AICopilot.oxtproperties 2>/dev/null || true
+rm -rf "$CACHE"/*/AICopilot.oxt* "$CACHE"/*/HaiLPER-*.oxt* 2>/dev/null || true
 find "$CACHE" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null || true
 
 OXT="$(ls -1 "$ROOT/dist"/HaiLPER-*.oxt 2>/dev/null | sort -V | tail -1)"
