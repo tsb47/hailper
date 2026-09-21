@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.0.1] - 2026-09-21
 
+### Added
+
+- **Model switcher in the sidebar**: the model field is now a dropdown so you
+  can change the active model without opening Settings (the choice is saved).
+
 ### Fixed
 
 - **Compact UI.** Reduced the sidebar panel and Settings dialog padding, row

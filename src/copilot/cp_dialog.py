@@ -235,8 +235,13 @@ class _Bridge(object):
             PositionX=0, PositionY=0, Width=content_w, Height=BTN_H + 2,
             Label="Send", DefaultButton=True)
         add("com.sun.star.awt.UnoControlFixedText", "provider_label",
-            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H,
-            Label="", Align=0)
+            PositionX=0, PositionY=0, Width=30, Height=LINE_H,
+            Label="Model:", Align=0)
+        model_choice = ui.create_model(
+            self.model, "com.sun.star.awt.UnoControlComboBox", "model_choice",
+            PositionX=0, PositionY=0, Width=content_w - 32,
+            Height=LINE_H + 3, Dropdown=True)
+        self.model.insertByName("model_choice", model_choice)
         add("com.sun.star.awt.UnoControlFixedText", "result_label",
             PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="Result:")
         add("com.sun.star.awt.UnoControlEdit", "result",
@@ -264,6 +269,11 @@ class _Bridge(object):
                         lambda event, i=index: self.on_mode_button(i)))
             except Exception:
                 pass
+        try:
+            self.dialog.getControl("model_choice").addItemListener(
+                ui.ItemListener(lambda event: self.on_model_changed()))
+        except Exception:
+            pass
 
         for slot in range(SLOTS):
             self.dialog.getControl("btn_%d" % slot).addActionListener(
@@ -316,7 +326,7 @@ class _Bridge(object):
             self._ensure_scale()
         if controls_ready:
             for name in ("instruction", "generate", "provider_label",
-                         "result_label", "result", "status"):
+                         "model_choice", "result_label", "result", "status"):
                 try:
                     self.dialog.getControl(name).setVisible(True)
                 except Exception:
@@ -365,8 +375,9 @@ class _Bridge(object):
         y += 28
         positions["generate"] = (PAD, y, content_w, BTN_H + 2)
         y += BTN_H + 4
-        positions["provider_label"] = (PAD, y, content_w, LINE_H)
-        y += LINE_H + 2
+        positions["provider_label"] = (PAD, y, 30, LINE_H)
+        positions["model_choice"] = (PAD + 32, y, content_w - 32, LINE_H + 3)
+        y += LINE_H + 4
         positions["status"] = (PAD, y, content_w, LINE_H)
         y += LINE_H + 4
         bw = (content_w - 2 * 4) // 3
@@ -438,7 +449,8 @@ class _Bridge(object):
         if not controls_ready:
             return
         for name in ("instruction", "generate",
-                     "provider_label", "choice_label_0", "choice_0",
+                     "provider_label", "model_choice",
+                     "choice_label_0", "choice_0",
                      "choice_label_1", "choice_1"):
             try:
                 self.dialog.getControl(name).setVisible(False)
@@ -475,6 +487,18 @@ class _Bridge(object):
             key = QUICK_ACTIONS[index][0]
             if key != self.action:
                 self.set_action(key)
+
+    def on_model_changed(self):
+        model = ui.get_text(self.dialog, "model_choice").strip()
+        if not model:
+            return
+        pid, _spec, _key, current, _base = cp_config.active_provider(self.config)
+        if model == current:
+            return
+        entry = self.config.setdefault("providers", {}).setdefault(pid, {})
+        entry["model"] = model
+        cp_config.save(self.config)
+        self._set_status("Model set to %s." % model)
 
     def _update_mode_buttons(self):
         for index, (key, _label) in enumerate(QUICK_ACTIONS):
@@ -519,7 +543,17 @@ class _Bridge(object):
             self._relayout()
 
         provider_id, spec, _key, model, _base = cp_config.active_provider(self.config)
-        ui.set_text(self.dialog, "provider_label", "%s / %s" % (spec["label"], model))
+        models = list(spec.get("models", []))
+        if model and model not in models:
+            models.insert(0, model)
+        try:
+            control = self.dialog.getControl("model_choice")
+            ui.set_string_list(control.getModel(), models)
+            ui.set_text(self.dialog, "model_choice", model)
+            control.getModel().setPropertyValue(
+                "HelpText", "%s / %s" % (spec["label"], model))
+        except Exception:
+            pass
 
         specs = [self.meta.get("primary", ("insert", "Insert"))]
         specs.extend(self.meta.get("buttons", []))
