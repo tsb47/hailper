@@ -238,12 +238,17 @@ src/
     cp_providers.py         HTTP clients for every provider
     cp_document.py          read/write Writer, Calc, Impress via UNO
     cp_prompts.py           prompt templates + choices per action
+    cp_format.py            formatting / style / layout operations
     cp_dialog.py            panel controller (layout, choices, apply)
     cp_diff.py              compare window (Accept/Reject)
     cp_options.py           settings dialog
     cp_ui.py                small shared UNO helpers
 build.sh / install.sh
+tests/                    unit tests (no LibreOffice needed)
 ```
+
+Run the tests with `python3 -m unittest discover -s tests -v`; CI runs them
+and builds `dist/HaiLPER-<version>.oxt` on every push and tag.
 
 ### Notes learned while building this
 
