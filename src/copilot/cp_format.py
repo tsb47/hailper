@@ -6,11 +6,12 @@ or ``find`` and one or more formatting keys.  Everything is wrapped in a single
 undo context so the whole batch can be undone at once.
 """
 
-import uno
+try:
+    import uno
+except Exception:  # pragma: no cover - uno is present inside LibreOffice
+    uno = None
 
-import cp_document
-
-WRITER = cp_document.WRITER
+WRITER = "writer"
 
 # Integer values match the com.sun.star enums; using literals keeps this module
 # importable without pulling in the whole type library.
@@ -215,7 +216,7 @@ def _para_props(op):
                 props[prop] = value
     if "keep_together" in op:
         props["ParaKeepTogether"] = bool(op["keep_together"])
-    if "line_spacing" in op:
+    if "line_spacing" in op and uno is not None:
         try:
             spacing = uno.createUnoStruct("com.sun.star.style.LineSpacing")
             spacing.Mode = _LINE_SPACING_PROP
@@ -307,6 +308,8 @@ def _validate_styles(doc, op):
 
 def apply_ops(doc_ctx, ops):
     """Apply formatting ops. Returns (applied_descriptions, errors)."""
+    import cp_document
+
     doc = doc_ctx.doc
     if doc_ctx.kind != WRITER:
         return [], ["Formatting is only supported in Writer for now."]

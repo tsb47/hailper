@@ -21,6 +21,9 @@ jobs:
           python3 -c "import glob, xml.dom.minidom as m; [m.parse(f) for f in glob.glob('src/*.xcu') + glob.glob('src/*.xml')]"
           python3 -m py_compile src/copilot/*.py
 
+      - name: Run tests
+        run: python3 -m unittest discover -s tests -v
+
       - name: Build .oxt
         run: ./build.sh
 
