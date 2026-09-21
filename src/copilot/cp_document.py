@@ -267,6 +267,39 @@ class DocumentContext(object):
             return ""
         return "\n".join(lines)
 
+    def outline_text(self, max_items=80):
+        """Return an indented heading outline (Writer only)."""
+        if self.kind != WRITER:
+            return ""
+        lines = []
+        try:
+            text = self.doc.getText()
+            enum = text.createEnumeration()
+            para_styles = self.doc.getStyleFamilies().getByName("ParagraphStyles")
+            count = 0
+            while enum.hasMoreElements() and count < max_items:
+                element = enum.nextElement()
+                if not _supports(element, "com.sun.star.text.Paragraph"):
+                    continue
+                content = element.getString().strip()
+                if not content:
+                    continue
+                try:
+                    style_name = element.getPropertyValue("ParaStyleName")
+                except Exception:
+                    continue
+                level = 0
+                try:
+                    level = para_styles.getByName(style_name).getPropertyValue("OutlineLevel")
+                except Exception:
+                    level = 0
+                if level and level > 0:
+                    lines.append("%s%s" % ("  " * (int(level) - 1), content[:80]))
+                    count += 1
+        except Exception:
+            return ""
+        return "\n".join(lines)
+
     def target_text(self):
         """Selection when there is one, otherwise the whole document."""
         if self.has_selection():

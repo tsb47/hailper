@@ -17,11 +17,18 @@ import unohelper
 from com.sun.star.awt import XTopWindowListener
 from com.sun.star.awt import XWindowListener
 
+import cp_actions
+import cp_agents
 import cp_config
+import cp_context
+import cp_conversations
 import cp_document
 import cp_format
+import cp_history
+import cp_personas
 import cp_prompts
 import cp_providers
+import cp_usage
 import cp_ui as ui
 
 
@@ -39,22 +46,8 @@ MAP_PIXEL = 7
 POS_FLAGS = 3  # com.sun.star.awt.PosSize.X | PosSize.Y
 SLOTS = 6
 
-QUICK_ACTIONS = [
-    ("chat", "Chat"),
-    ("summarize", "Summarize"),
-    ("rewrite", "Rewrite"),
-    ("translate", "Translate"),
-    ("proofread", "Proofread"),
-    ("continue", "Continue"),
-    ("explain", "Explain"),
-]
-
 _ICON_BASE = ("vnd.sun.star.extension://io.github.rokusaburo.hailper/"
               "icons/%s.png")
-
-
-def _mode_icon(action, active):
-    return _ICON_BASE % ("%s-22%s" % (action, "-on" if active else ""))
 
 _panel = None
 
@@ -144,6 +137,21 @@ class _Bridge(object):
         self.streaming = False
         self.streaming_partial = ""
         self.model_picker_visible = False
+        self.agent_mode = bool((config.get("agents") or {}).get("enabled", False))
+        self.agent_active = False
+        self.agent_steps = 0
+        self.agent_max = 0
+        self.agent_messages = None
+        self.agent_system = ""
+        self.last_usage = None
+        self.session_usage = {"tokens": 0, "cost": 0.0, "calls": 0}
+        self.action_titles = []
+        self.visible_action_keys = []
+        self.conversation_id = None
+        try:
+            cp_actions.register()
+        except Exception:
+            pass
 
         self.async_callback = ui.smgr(ctx).createInstanceWithContext(
             "com.sun.star.awt.AsyncCallback", ctx
@@ -219,10 +227,16 @@ class _Bridge(object):
             self.model.insertByName(
                 name, ui.create_model(self.model, service, name, **props))
 
-        for index, (key, label) in enumerate(QUICK_ACTIONS):
-            add("com.sun.star.awt.UnoControlButton", "mode_%d" % index,
-                PositionX=0, PositionY=0, Width=1, Height=BTN_H,
-                HelpText=label)
+        action_choice = ui.create_model(
+            self.model, "com.sun.star.awt.UnoControlComboBox", "action_choice",
+            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H + 4,
+            Dropdown=True)
+        self.model.insertByName("action_choice", action_choice)
+        persona_choice = ui.create_model(
+            self.model, "com.sun.star.awt.UnoControlComboBox", "persona_choice",
+            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H + 4,
+            Dropdown=True)
+        self.model.insertByName("persona_choice", persona_choice)
         add("com.sun.star.awt.UnoControlEdit", "instruction",
             PositionX=0, PositionY=0, Width=content_w, Height=40,
             MultiLine=True, VScroll=True, HScroll=False)
@@ -251,10 +265,24 @@ class _Bridge(object):
             PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
             ImageURL=_ICON_BASE % "options-16.png",
             HelpText="Show / hide the model picker")
+        add("com.sun.star.awt.UnoControlButton", "starters_btn",
+            PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
+            ImageURL=_ICON_BASE % "starters-16.png",
+            HelpText="Starter prompts")
+        add("com.sun.star.awt.UnoControlButton", "history_btn",
+            PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
+            ImageURL=_ICON_BASE % "history-16.png",
+            HelpText="Saved conversations")
+        add("com.sun.star.awt.UnoControlButton", "agent_toggle",
+            PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
+            ImageURL=_ICON_BASE % "agent-16.png",
+            HelpText="Agent mode (multi-step)")
         add("com.sun.star.awt.UnoControlEdit", "result",
             PositionX=0, PositionY=0, Width=content_w, Height=RESULT_H,
             MultiLine=True, ReadOnly=True, VScroll=True, HScroll=False)
         add("com.sun.star.awt.UnoControlFixedText", "status",
+            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="")
+        add("com.sun.star.awt.UnoControlFixedText", "usage_label",
             PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="")
         for slot in range(SLOTS):
             add("com.sun.star.awt.UnoControlButton", "btn_%d" % slot,
@@ -269,23 +297,30 @@ class _Bridge(object):
         self.dialog.getControl("generate").addActionListener(
             ui.ActionListener(lambda event: self.on_generate())
         )
-        for index in range(len(QUICK_ACTIONS)):
-            try:
-                self.dialog.getControl("mode_%d" % index).addActionListener(
-                    ui.ActionListener(
-                        lambda event, i=index: self.on_mode_button(i)))
-            except Exception:
-                pass
+        try:
+            self.dialog.getControl("action_choice").addItemListener(
+                ui.ItemListener(lambda event: self.on_action_changed()))
+        except Exception:
+            pass
+        try:
+            self.dialog.getControl("persona_choice").addItemListener(
+                ui.ItemListener(lambda event: self.on_persona_changed()))
+        except Exception:
+            pass
         try:
             self.dialog.getControl("model_choice").addItemListener(
                 ui.ItemListener(lambda event: self.on_model_changed()))
         except Exception:
             pass
-        try:
-            self.dialog.getControl("model_toggle").addActionListener(
-                ui.ActionListener(lambda event: self.on_toggle_model()))
-        except Exception:
-            pass
+        for name, handler in (("model_toggle", self.on_toggle_model),
+                              ("starters_btn", self.on_starters),
+                              ("history_btn", self.on_history),
+                              ("agent_toggle", self.on_toggle_agent)):
+            try:
+                self.dialog.getControl(name).addActionListener(
+                    ui.ActionListener(lambda event, h=handler: h()))
+            except Exception:
+                pass
 
         for slot in range(SLOTS):
             self.dialog.getControl("btn_%d" % slot).addActionListener(
@@ -337,8 +372,10 @@ class _Bridge(object):
         show_model = bool(getattr(self, "model_picker_visible", False))
         if controls_ready:
             self._ensure_scale()
-            for name in ("instruction", "generate", "result_label",
-                         "result", "status", "model_toggle"):
+            for name in ("instruction", "generate", "result_label", "result",
+                         "status", "usage_label", "action_choice",
+                         "persona_choice", "model_toggle", "starters_btn",
+                         "history_btn", "agent_toggle"):
                 try:
                     self.dialog.getControl(name).setVisible(True)
                 except Exception:
@@ -348,23 +385,18 @@ class _Bridge(object):
                     self.dialog.getControl(name).setVisible(show_model)
                 except Exception:
                     pass
-            for index in range(len(QUICK_ACTIONS)):
-                try:
-                    self.dialog.getControl("mode_%d" % index).setVisible(True)
-                except Exception:
-                    pass
-            self._update_mode_buttons()
+            self._update_action_selector()
+            self._update_persona_selector()
+            self._update_agent_button()
+            self._update_usage_line()
         content_w = DLG_W - 2 * PAD
         visible = getattr(self, "visible_choices", [])
         positions = {}
         y = PAD
-        cols = len(QUICK_ACTIONS)
-        gap = 3
-        mw = (content_w - gap * (cols - 1)) // cols
-        for index in range(cols):
-            positions["mode_%d" % index] = (
-                PAD + index * (mw + gap), y, mw, BTN_H)
-        y += BTN_H + 4
+        positions["action_choice"] = (PAD, y, content_w, LINE_H + 4)
+        y += LINE_H + 6
+        positions["persona_choice"] = (PAD, y, content_w, LINE_H + 4)
+        y += LINE_H + 6
         for index in range(2):
             if index < len(visible):
                 positions["choice_label_%d" % index] = (PAD, y + 1, 48, LINE_H + 3)
@@ -372,16 +404,23 @@ class _Bridge(object):
                     PAD + 50, y, content_w - 50, LINE_H + 3)
                 y += LINE_H + 5
 
-        # Conversation header, with the model-picker toggle at the right.
-        positions["result_label"] = (PAD, y, content_w - 18, LINE_H)
-        positions["model_toggle"] = (PAD + content_w - 16, y - 2, 16, LINE_H + 4)
+        # Conversation header: label + small buttons (model, starters, history, agent).
+        header_btns = ("model_toggle", "starters_btn", "history_btn", "agent_toggle")
+        btn_w, bgap = 16, 2
+        total_btns = len(header_btns) * btn_w + (len(header_btns) - 1) * bgap
+        positions["result_label"] = (PAD, y, content_w - total_btns - 4, LINE_H)
+        bx = PAD + content_w - total_btns
+        for name in header_btns:
+            positions[name] = (bx, y - 2, btn_w, LINE_H + 4)
+            bx += btn_w + bgap
         y += LINE_H + 2
         result_y = y
 
-        # Everything below the transcript (input, send, status, buttons) plus
-        # the optional model row; the transcript gets everything else so the
+        # Everything below the transcript (input, send, status, usage, buttons)
+        # plus the optional model row; the transcript gets everything else so the
         # buttons can never be pushed off the bottom.
-        below = (28 + (BTN_H + 4) + (LINE_H + 4) + (2 * BTN_H + 2) + PAD)
+        below = (28 + (BTN_H + 4) + (LINE_H + 4) + (LINE_H + 4)
+                 + (2 * BTN_H + 2) + PAD)
         if show_model:
             below += LINE_H + 4
 
@@ -404,6 +443,8 @@ class _Bridge(object):
             positions["model_choice"] = (PAD + 32, y, content_w - 32, LINE_H + 3)
             y += LINE_H + 4
         positions["status"] = (PAD, y, content_w, LINE_H)
+        y += LINE_H + 4
+        positions["usage_label"] = (PAD, y, content_w, LINE_H)
         y += LINE_H + 4
         bw = (content_w - 2 * 4) // 3
         for slot in range(SLOTS):
@@ -481,9 +522,10 @@ class _Bridge(object):
                 self.dialog.getControl(name).setVisible(False)
             except Exception:
                 pass
-        for index in range(len(QUICK_ACTIONS)):
+        for name in ("action_choice", "persona_choice", "usage_label",
+                     "starters_btn", "history_btn", "agent_toggle"):
             try:
-                self.dialog.getControl("mode_%d" % index).setVisible(False)
+                self.dialog.getControl(name).setVisible(False)
             except Exception:
                 pass
         for name in ("result_label", "result", "status"):
@@ -505,13 +547,150 @@ class _Bridge(object):
         if self.built:
             self.apply_meta()
 
-    def on_mode_button(self, index):
+    def on_action_changed(self):
         if self.flow:
             return
-        if 0 <= index < len(QUICK_ACTIONS):
-            key = QUICK_ACTIONS[index][0]
-            if key != self.action:
-                self.set_action(key)
+        title = ui.get_text(self.dialog, "action_choice").strip()
+        key = self._key_for_title(title)
+        if key and key != self.action:
+            self.set_action(key)
+
+    def _key_for_title(self, title):
+        for key, label in self._action_pairs():
+            if label == title:
+                return key
+        # custom actions use their title directly
+        for key in cp_prompts.custom_actions():
+            if cp_prompts.action_meta(key).get("title") == title:
+                return key
+        return None
+
+    def parsed_action_title(self, key):
+        return cp_prompts.action_meta(key).get("title", key.title())
+
+    def on_persona_changed(self):
+        if self.flow:
+            return
+        name = ui.get_text(self.dialog, "persona_choice").strip()
+        for persona in cp_personas.get_personas(self.config):
+            if persona.get("name") == name:
+                self.config["persona"] = persona.get("id")
+                cp_config.save(self.config)
+                self.apply_meta()
+                self._set_status("Persona: %s" % name)
+                return
+
+    def on_starters(self):
+        import cp_ui as _ui
+        starters = cp_personas.starters(self.config)
+        if not starters:
+            self._set_status("No starter prompts for this persona.")
+            return
+        try:
+            menu = ui.smgr(self.ctx).createInstanceWithContext(
+                "com.sun.star.awt.PopupMenu", self.ctx)
+            for index, text in enumerate(starters):
+                menu.insertItem(index + 1, text[:60], 0, 0)
+            control = self.dialog.getControl("starters_btn")
+            pos = control.getPosSize()
+            chosen = menu.execute(control.getPeer(), pos.X, pos.Y + pos.Height, 0)
+            if chosen and 1 <= chosen <= len(starters):
+                ui.set_text(self.dialog, "instruction", starters[chosen - 1])
+                try:
+                    self.dialog.getControl("instruction").setFocus()
+                except Exception:
+                    pass
+        except Exception as error:
+            ui.log("starters failed: %r" % error)
+            ui.set_text(self.dialog, "instruction", starters[0])
+
+    def on_history(self):
+        action, cid = cp_history.show(self.ctx, self.frame)
+        if action == "new":
+            self.on_clear()
+            self.conversation_id = None
+            self._set_status("Started a new conversation.")
+        elif action == "load" and cid:
+            self._load_conversation(cid)
+
+    def _load_conversation(self, cid):
+        data = cp_conversations.load(cid)
+        if not data:
+            self._set_status("Could not load that conversation.")
+            return
+        self.conversation_id = cid
+        self.history = [(m.get("who", "HaiLPER"), m.get("text", ""))
+                        for m in data.get("messages", [])]
+        self._refresh_history_view()
+        self._set_status("Loaded \u201c%s\u201d." % (data.get("name") or "conversation"))
+
+    def _persist_conversation(self):
+        if not (self.config.get("history") or {}).get("persist", True):
+            return
+        messages = [{"who": who, "text": text} for who, text in self.history]
+        if not messages:
+            return
+        name = ""
+        for who, text in self.history:
+            if who == "You":
+                name = text.strip().split("\n")[0][:60]
+                break
+        meta = {"provider": self.config.get("provider"),
+                "model": cp_config.active_provider(self.config)[3],
+                "persona": self.config.get("persona")}
+        if self.conversation_id:
+            cp_conversations.update(self.conversation_id, name, messages, meta)
+        else:
+            self.conversation_id = cp_conversations.save(name, messages, meta)
+
+    def on_toggle_agent(self):
+        self.agent_mode = not self.agent_mode
+        self._update_agent_button()
+        self._set_status("Agent mode on \u2014 multi-step." if self.agent_mode
+                         else "Agent mode off.")
+
+    def _update_agent_button(self):
+        try:
+            control = self.dialog.getControl("agent_toggle")
+            control.getModel().setPropertyValue(
+                "ImageURL", _ICON_BASE % ("agent-16-on.png" if self.agent_mode
+                                          else "agent-16.png"))
+        except Exception:
+            pass
+
+    def _update_usage_line(self):
+        show = (self.config.get("usage") or {}).get("show", True)
+        try:
+            control = self.dialog.getControl("usage_label")
+            control.setVisible(bool(show))
+            if not show:
+                return
+            pid, _spec, _key, model, _base = cp_config.active_provider(self.config)
+            window = cp_context.context_window(pid, model, self.config)
+            if self.last_usage is None and not self.session_usage.get("tokens"):
+                control.setText("%s  \u00b7  %s ctx" % (model, "{:,}".format(window)))
+                return
+            control.setText(cp_usage.format_line(
+                pid, model, self.last_usage or {"input": 0, "output": 0},
+                self.session_usage, window, self.config))
+        except Exception:
+            pass
+
+    def _record_usage(self, usage):
+        if not usage:
+            return
+        self.last_usage = usage
+        total = (usage.get("input", 0) or 0) + (usage.get("output", 0) or 0)
+        self.session_usage["tokens"] = self.session_usage.get("tokens", 0) + total
+        self.session_usage["calls"] = self.session_usage.get("calls", 0) + 1
+        pid, _spec, _key, model, _base = cp_config.active_provider(self.config)
+        self.session_usage["cost"] = (self.session_usage.get("cost", 0.0)
+                                      + cp_usage.cost(pid, model, usage, self.config))
+        ui.log("usage in=%s out=%s session_tokens=%s cost=%s"
+               % (usage.get("input"), usage.get("output"),
+                  self.session_usage.get("tokens"),
+                  cp_usage.money(self.session_usage.get("cost", 0.0))))
+        self._update_usage_line()
 
     def on_toggle_model(self):
         self.model_picker_visible = not self.model_picker_visible
@@ -531,22 +710,65 @@ class _Bridge(object):
         cp_config.save(self.config)
         self._set_status("Model set to %s." % model)
 
-    def _update_mode_buttons(self):
-        for index, (key, _label) in enumerate(QUICK_ACTIONS):
-            control = self.dialog.getControl("mode_%d" % index)
-            if control is None:
-                continue
-            active = (key == self.action)
-            try:
-                control.getModel().setPropertyValue(
-                    "ImageURL", _mode_icon(key, active))
-            except Exception:
-                pass
+    def _action_pairs(self):
+        persona = cp_personas.active(self.config)
+        pairs = []
+        builtin = [
+            ("chat", "Chat"),
+            ("summarize", "Summarize"),
+            ("rewrite", "Rewrite"),
+            ("translate", "Translate"),
+            ("proofread", "Proofread"),
+            ("continue", "Continue"),
+            ("explain", "Explain"),
+            ("custom", "Ask About Selection"),
+        ]
+        for key, label in builtin:
+            if cp_personas.allows(persona, key):
+                pairs.append((key, label))
+        for key in cp_prompts.custom_actions():
+            if cp_personas.allows(persona, key):
+                pairs.append((key, cp_prompts.action_meta(key).get("title", key)))
+        return pairs
+
+    def _update_action_selector(self):
+        pairs = self._action_pairs()
+        self.visible_action_keys = [key for key, _label in pairs]
+        labels = [label for _key, label in pairs]
+        current = None
+        for key, label in pairs:
+            if key == self.action:
+                current = label
+        try:
+            combo = self.dialog.getControl("action_choice")
+            ui.set_string_list(combo.getModel(), labels)
+            if current is None and labels:
+                current = labels[0]
+                self.action = pairs[0][0]
+                self.meta = cp_prompts.action_meta(self.action)
+            if current is not None:
+                combo.setText(current)
+        except Exception:
+            pass
+
+    def _update_persona_selector(self):
+        personas = cp_personas.get_personas(self.config)
+        labels = [persona.get("name", "?") for persona in personas]
+        active = cp_personas.active(self.config)
+        try:
+            combo = self.dialog.getControl("persona_choice")
+            ui.set_string_list(combo.getModel(), labels)
+            combo.setText(active.get("name", ""))
+        except Exception:
+            pass
 
     def apply_meta(self):
         is_chat = self.action == "chat"
         ui.set_text(self.dialog, "result_label", "Conversation:")
-        self._update_mode_buttons()
+        self._update_action_selector()
+        self._update_persona_selector()
+        self._update_agent_button()
+        self._update_usage_line()
         display = self.meta.get("display_instruction",
                                 self.meta.get("instruction", ""))
         instruction = "" if is_chat else display
@@ -630,6 +852,10 @@ class _Bridge(object):
     def add_history_line(self, speaker, text):
         self.history.append((speaker, text))
         self._refresh_history_view()
+        try:
+            self._persist_conversation()
+        except Exception:
+            pass
 
     def history_as_messages(self):
         return [
@@ -760,10 +986,39 @@ class _Bridge(object):
         if self.action != "proofread":
             self.suggestions = []
 
+        # Give the model the document outline for structural awareness.
+        if (self.action in ("chat", "summarize")
+                and doc_ctx is not None
+                and self.config.get("allow_document_access", True)):
+            try:
+                outline = doc_ctx.outline_text()
+                if outline:
+                    system_extra = ((system_extra + "\n\nDocument outline:\n" + outline)
+                                    if system_extra
+                                    else ("Document outline:\n" + outline))
+            except Exception:
+                pass
+
+        persona = cp_personas.active(self.config)
         system = self.config.get("system_prompt", "")
+        persona_prompt = persona.get("system_prompt") or ""
+        if persona_prompt:
+            system = (persona_prompt + "\n\n" + system) if system else persona_prompt
         if system_extra:
             system = (system + "\n\n" + system_extra) if system else system_extra
         system = self._with_hints(system)
+
+        agent_on = self.agent_mode or bool(
+            (self.config.get("agents") or {}).get("enabled", False))
+        if agent_on:
+            system = (system + "\n\n" + cp_agents.AGENT_HINT) if system \
+                else cp_agents.AGENT_HINT
+            self.agent_active = True
+            self.agent_steps = int((self.config.get("agents") or {}).get(
+                "max_steps", 8) or 8)
+            self.agent_max = self.agent_steps
+            self.agent_messages = list(messages)
+            self.agent_system = system
 
         if self.action == "chat":
             self.add_history_line("You", instruction)
@@ -796,7 +1051,16 @@ class _Bridge(object):
 
     def _start_request(self, messages, system):
         provider_id, spec, api_key, model, base_url = cp_config.active_provider(self.config)
-        temperature = float(self.config.get("temperature", 0.3))
+        persona = cp_personas.active(self.config)
+        if persona.get("model"):
+            model = persona["model"]
+        if persona.get("temperature") is not None:
+            try:
+                temperature = float(persona["temperature"])
+            except (TypeError, ValueError):
+                temperature = float(self.config.get("temperature", 0.3))
+        else:
+            temperature = float(self.config.get("temperature", 0.3))
         max_tokens = int(self.config.get("max_tokens", 1024))
         timeout = int(self.config.get("timeout", 120))
         stream = bool(self.config.get("stream", True)) \
@@ -855,8 +1119,51 @@ class _Bridge(object):
         else:
             self._set_status("No formatting changes.")
 
+    def _agent_step(self, directive, text):
+        step_no = self.agent_max - self.agent_steps + 1
+        try:
+            if directive[0] == "document":
+                doc_ctx = self._current_doc_ctx()
+                result = ("Document contents:\n\n"
+                          + (cp_prompts._truncate(doc_ctx.full_text())
+                             if doc_ctx else ""))
+            elif directive[0] == "edit":
+                ok = self._apply_directive_edit(directive[1])
+                result = "Edit applied." if ok else "Edit could not be applied."
+            elif directive[0] == "format":
+                applied, errors = cp_format.apply_ops(
+                    self._current_doc_ctx(), directive[1])
+                result = ("Formatting applied: " + "; ".join(applied)) if applied \
+                    else ("Formatting failed: " + "; ".join(errors or ["nothing to do"]))
+            else:
+                result = "Unknown tool."
+        except Exception as error:  # noqa: BLE001
+            result = "Tool error: %s" % error
+        self.add_history_line(
+            "HaiLPER", "\u2699 Step %d: %s\n%s"
+            % (step_no, cp_agents.describe(directive),
+               result.split("\n")[0][:100]))
+        self.agent_steps -= 1
+        if self.agent_steps <= 0:
+            self.add_history_line("HaiLPER", "Agent stopped after the step limit.")
+            self._agent_finish()
+            return
+        self.agent_messages.append({"role": "assistant", "content": text})
+        self.agent_messages.append(
+            {"role": "user", "content": "Tool result:\n" + result})
+        self._set_status("Agent mode: step %d\u2026"
+                         % (self.agent_max - self.agent_steps + 1))
+        self._start_request(self.agent_messages, self.agent_system)
+
+    def _agent_finish(self):
+        self.agent_active = False
+        self.agent_steps = 0
+        self._set_busy(False)
+
     def on_stop(self):
         self.gen_id += 1
+        self.agent_active = False
+        self.agent_steps = 0
         self._set_busy(False)
         self._set_status("Cancelled.")
 
@@ -871,16 +1178,28 @@ class _Bridge(object):
             except Exception:
                 pass
 
+        def on_usage(usage):
+            if not usage:
+                return
+            try:
+                self.async_callback.addCallback(
+                    self.callback_object,
+                    ui.payload(usage_in=int(usage.get("input", 0) or 0),
+                               usage_out=int(usage.get("output", 0) or 0),
+                               gen=gen_id))
+            except Exception:
+                pass
+
         try:
             if stream:
                 reply = cp_providers.chat_stream(
                     provider_id, api_key, model, base_url, messages, system,
-                    temperature, max_tokens, timeout, on_chunk,
+                    temperature, max_tokens, timeout, on_chunk, on_usage,
                 )
             else:
                 reply = cp_providers.chat(
                     provider_id, api_key, model, base_url, messages, system,
-                    temperature, max_tokens, timeout,
+                    temperature, max_tokens, timeout, on_usage=on_usage,
                 )
             payload = ui.payload(ok=True, text=reply, gen=gen_id)
         except Exception as error:  # noqa: BLE001
@@ -895,6 +1214,10 @@ class _Bridge(object):
             return
         payload = ui.read_payload(data)
         if payload.get("gen") != self.gen_id:
+            return
+        if "usage_in" in payload or "usage_out" in payload:
+            self._record_usage({"input": payload.get("usage_in", 0) or 0,
+                                "output": payload.get("usage_out", 0) or 0})
             return
         delta = payload.get("delta")
         if delta is not None:
@@ -923,6 +1246,11 @@ class _Bridge(object):
         if (self.pending_action == "chat" or self.config.get("allow_edits")
                 or self.config.get("allow_formatting")):
             directive = cp_prompts.parse_directive(text)
+        if self.agent_active and not directive:
+            self.agent_active = False  # final plain-text answer
+        if directive and self.agent_active:
+            self._agent_step(directive, text)
+            return
         if (directive and directive[0] == "document"
                 and not self.doc_requested
                 and self.config.get("allow_document_access")):

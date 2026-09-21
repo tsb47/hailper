@@ -295,7 +295,27 @@ def _truncate(text):
     return text[:MAX_INPUT_CHARS] + "\n\n[... rest of document truncated ...]"
 
 
+_CUSTOM_ACTIONS = {}
+
+
+def register_custom_actions(mapping):
+    global _CUSTOM_ACTIONS
+    _CUSTOM_ACTIONS = dict(mapping or {})
+
+
+def custom_actions():
+    return dict(_CUSTOM_ACTIONS)
+
+
+def all_actions():
+    merged = dict(ACTIONS)
+    merged.update(_CUSTOM_ACTIONS)
+    return merged
+
+
 def action_meta(action):
+    if action in _CUSTOM_ACTIONS:
+        return _CUSTOM_ACTIONS[action]
     return ACTIONS.get(action, ACTIONS["chat"])
 
 

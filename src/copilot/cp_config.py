@@ -4,6 +4,7 @@ import json
 import os
 import stat
 
+import cp_personas
 import cp_secrets
 from cp_providers import PROVIDERS
 
@@ -34,6 +35,7 @@ def _provider_defaults():
 
 
 DEFAULTS = {
+    "schema": 4,
     "provider": "ollama",
     "temperature": 0.3,
     "max_tokens": 1024,
@@ -47,6 +49,11 @@ DEFAULTS = {
     "track_changes": True,
     "remember_keys": True,
     "stream": True,
+    "persona": cp_personas.DEFAULT_PERSONA,
+    "personas": cp_personas.default_personas(),
+    "usage": {"show": True, "prices": {}, "context_limits": {}},
+    "agents": {"enabled": False, "max_steps": 8},
+    "history": {"persist": True},
 }
 
 

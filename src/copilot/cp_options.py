@@ -6,13 +6,15 @@ import unohelper
 from com.sun.star.awt import XActionListener
 from com.sun.star.awt import XItemListener
 
+import cp_actions_ui
 import cp_config
+import cp_personas_ui
 import cp_providers
 import cp_secrets
 
 
 DLG_W = 460
-DLG_H = 386
+DLG_H = 414
 PAD = 8
 LINE_H = 14
 BTN_H = 20
@@ -101,7 +103,7 @@ class _OptionsBridge(object):
 
         field_x = 96
         field_w = DLG_W - field_x - PAD
-        step = LINE_H + 6
+        step = LINE_H + 5
         y = PAD
 
         self._add_label("provider_label", PAD, y, "Provider:", 80)
@@ -228,7 +230,7 @@ class _OptionsBridge(object):
                 Label="Allow HaiLPER to edit the document directly",
             ),
         )
-        y += LINE_H + 4
+        y += LINE_H + 2
         self.model.insertByName(
             "allow_document_access",
             _create_model(
@@ -239,7 +241,7 @@ class _OptionsBridge(object):
             ),
         )
 
-        y += LINE_H + 4
+        y += LINE_H + 2
         self.model.insertByName(
             "allow_formatting",
             _create_model(
@@ -249,7 +251,7 @@ class _OptionsBridge(object):
                 Label="Allow HaiLPER to change formatting, styles and layout",
             ),
         )
-        y += LINE_H + 4
+        y += LINE_H + 2
         self.model.insertByName(
             "track_changes",
             _create_model(
@@ -259,7 +261,7 @@ class _OptionsBridge(object):
                 Label="Apply Rewrite / Proofread as tracked changes",
             ),
         )
-        y += LINE_H + 4
+        y += LINE_H + 2
         self.model.insertByName(
             "remember_keys",
             _create_model(
@@ -269,7 +271,7 @@ class _OptionsBridge(object):
                 Label="Remember API key on this computer (stored in plain text)",
             ),
         )
-        y += LINE_H + 4
+        y += LINE_H + 2
         self.model.insertByName(
             "stream",
             _create_model(
@@ -279,10 +281,48 @@ class _OptionsBridge(object):
                 Label="Stream responses as they are generated",
             ),
         )
+        y += LINE_H + 2
+        self.model.insertByName(
+            "show_usage",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "show_usage", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Show token usage and estimated cost",
+            ),
+        )
+        y += LINE_H + 2
+        self.model.insertByName(
+            "agents_enabled",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "agents_enabled", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Agent mode by default (multi-step)",
+            ),
+        )
 
-        y += LINE_H + 8
+        y += LINE_H + 6
+        self.model.insertByName(
+            "btn_personas",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_personas",
+                PositionX=field_x, PositionY=y, Width=120, Height=BTN_H,
+                Label="Personas\u2026",
+            ),
+        )
+        self.model.insertByName(
+            "btn_actions",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_actions",
+                PositionX=field_x + 128, PositionY=y, Width=120, Height=BTN_H,
+                Label="Custom actions\u2026",
+            ),
+        )
+
+        y += BTN_H + 6
         self._add_label("system_label", PAD, y, "System prompt:", 80)
-        system_height = DLG_H - y - BTN_H - 2 * PAD - 6
+        system_height = max(70, DLG_H - y - BTN_H - 2 * PAD - 6)
         self.model.insertByName(
             "system_prompt",
             _create_model(
@@ -340,6 +380,13 @@ class _OptionsBridge(object):
         )
         self.dialog.getControl("btn_clear_key").addActionListener(
             _ActionListener(lambda e: self._clear_key())
+        )
+        self.dialog.getControl("btn_personas").addActionListener(
+            _ActionListener(lambda e: cp_personas_ui.show(self.ctx, self.frame,
+                                                          self.config))
+        )
+        self.dialog.getControl("btn_actions").addActionListener(
+            _ActionListener(lambda e: cp_actions_ui.show(self.ctx, self.frame))
         )
 
         self._load_provider()
@@ -412,6 +459,10 @@ class _OptionsBridge(object):
         self._set_state("track_changes", self.config.get("track_changes", True))
         self._set_state("remember_keys", self.config.get("remember_keys", True))
         self._set_state("stream", self.config.get("stream", True))
+        self._set_state("show_usage",
+                        (self.config.get("usage") or {}).get("show", True))
+        self._set_state("agents_enabled",
+                        (self.config.get("agents") or {}).get("enabled", False))
         models = list(spec.get("models", []))
         if not models and pid not in self._model_cache:
             base = self._get("base_url").strip()
@@ -524,6 +575,9 @@ class _OptionsBridge(object):
         self.config["track_changes"] = self._get_state("track_changes")
         self.config["remember_keys"] = self._get_state("remember_keys")
         self.config["stream"] = self._get_state("stream")
+        self.config.setdefault("usage", {})["show"] = self._get_state("show_usage")
+        self.config.setdefault("agents", {})["enabled"] = \
+            self._get_state("agents_enabled")
 
         to_save = self.config
         if not self.config["remember_keys"]:

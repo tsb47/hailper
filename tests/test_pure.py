@@ -9,11 +9,16 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "copilot"))
 
+import cp_actions  # noqa: E402
+import cp_agents  # noqa: E402
 import cp_config  # noqa: E402
+import cp_context  # noqa: E402
 import cp_format  # noqa: E402
+import cp_personas  # noqa: E402
 import cp_prompts  # noqa: E402
 import cp_providers  # noqa: E402
 import cp_secrets  # noqa: E402
+import cp_usage  # noqa: E402
 
 
 class TestDirectives(unittest.TestCase):
@@ -146,6 +151,88 @@ class TestSecrets(unittest.TestCase):
             cp_secrets.delete("p1")  # clean up the keyring entry
         else:
             self.assertEqual(key, "x")
+
+
+class TestContext(unittest.TestCase):
+    def test_estimate(self):
+        self.assertEqual(cp_context.estimate_tokens(""), 0)
+        self.assertEqual(cp_context.estimate_tokens("x" * 400), 100)
+
+    def test_windows(self):
+        self.assertEqual(cp_context.context_window("openai", "gpt-4o"), 128000)
+        self.assertEqual(cp_context.context_window("ollama", "llama3.2:3b"), 8192)
+
+    def test_override(self):
+        cfg = {"usage": {"context_limits": {"mymodel": 4096}}}
+        self.assertEqual(cp_context.context_window("x", "mymodel", cfg), 4096)
+
+    def test_fit(self):
+        text = "a" * 5000
+        out = cp_context.fit_to_budget(text, 100)
+        self.assertLess(len(out), len(text))
+        self.assertIn("trimmed", out)
+
+
+class TestUsage(unittest.TestCase):
+    def test_price_lookup(self):
+        self.assertEqual(cp_usage.price_for("deepseek", "deepseek-chat"),
+                         (0.27, 1.10))
+
+    def test_cost(self):
+        value = cp_usage.cost("deepseek", "deepseek-chat",
+                              {"input": 1000, "output": 1000})
+        self.assertAlmostEqual(value, (0.27 + 1.10) / 1000.0, places=8)
+
+    def test_local_free(self):
+        self.assertEqual(cp_usage.cost("ollama", "x", {"input": 999, "output": 999}), 0.0)
+        self.assertTrue(cp_usage.is_local("ollama"))
+
+
+class TestPersonas(unittest.TestCase):
+    def test_builtins(self):
+        ids = [p["id"] for p in cp_personas.get_personas({})]
+        self.assertIn("general", ids)
+        self.assertIn("editor", ids)
+
+    def test_active_default(self):
+        self.assertEqual(cp_personas.active({})["id"], "general")
+
+    def test_active_custom(self):
+        cfg = {"persona": "reviewer", "personas": cp_personas.default_personas()}
+        self.assertEqual(cp_personas.active(cfg)["id"], "reviewer")
+
+    def test_starters(self):
+        self.assertTrue(cp_personas.starters({"persona": "editor"}))
+
+    def test_allows(self):
+        reviewer = cp_personas.get_persona({}, "reviewer")
+        self.assertTrue(cp_personas.allows(reviewer, "proofread"))
+        self.assertFalse(cp_personas.allows(reviewer, "translate"))
+        general = cp_personas.get_persona({}, "general")
+        self.assertTrue(cp_personas.allows(general, "translate"))
+
+
+class TestCustomActions(unittest.TestCase):
+    def test_normalize(self):
+        action = cp_actions.normalize({"title": "Make Formal", "instruction": "be formal"})
+        self.assertEqual(action["id"], "custom_make_formal")
+        self.assertEqual(action["scope"], "selection")
+        self.assertEqual(action["primary"], ["replace", "Replace selection"])
+
+    def test_normalize_document(self):
+        action = cp_actions.normalize({"title": "X", "scope": "document"})
+        self.assertEqual(action["primary"], ["insert", "Insert"])
+
+    def test_meta_shape(self):
+        meta = cp_actions.as_meta(cp_actions.normalize({"title": "T"}))
+        self.assertIn("primary", meta)
+        self.assertTrue(meta["custom"])
+
+
+class TestAgentHint(unittest.TestCase):
+    def test_describe(self):
+        self.assertEqual(cp_agents.describe(("document", None)), "read the document")
+        self.assertIn("format", cp_agents.describe(("format", [{}])))
 
 
 if __name__ == "__main__":

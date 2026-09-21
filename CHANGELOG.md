@@ -4,6 +4,32 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-22
+
+### Added
+
+- **Action dropdown** replacing the icon row: one selector for all built-in and
+  custom actions.
+- **Personas** (General, Editor, Reviewer, Researcher) that set the system
+  prompt, model, temperature and which actions are available; switchable from
+  the panel.
+- **Custom actions** defined in `~/.config/hailper/actions.json` and shown in
+  the dropdown and right-click menu.
+- **Token / cost meter**: per-request tokens, estimated cost (built-in price
+  table with overrides) and context-window usage, for cloud and local models.
+- **Document outline awareness**: the model receives the heading outline, and
+  an action/format target of `section` can be used.
+- **Agent mode**: an explicit, multi-step loop where the model uses the
+  edit/format/document tools until the task is done (toggle in the panel).
+- **Starter prompts** per persona and **conversation persistence** under
+  `~/.config/hailper/conversations/` with a History picker.
+- Panel header buttons: model picker, starters, history and agent toggle.
+
+### Notes
+
+- Local models show token counts and `local · free`; unknown cloud pricing
+  shows `$0.00` rather than guessing.
+
 ## [1.1.1] - 2026-09-21
 
 ### Security

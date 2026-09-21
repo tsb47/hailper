@@ -549,6 +549,31 @@ def _parse_gemini(data):
     return text
 
 
+def _mk_usage(prompt_tokens, completion_tokens):
+    if prompt_tokens is None and completion_tokens is None:
+        return None
+    return {"input": int(prompt_tokens or 0), "output": int(completion_tokens or 0)}
+
+
+def _usage_openai(data):
+    usage = data.get("usage") or {}
+    return _mk_usage(usage.get("prompt_tokens"), usage.get("completion_tokens"))
+
+
+def _usage_anthropic(data):
+    usage = data.get("usage") or {}
+    return _mk_usage(usage.get("input_tokens"), usage.get("output_tokens"))
+
+
+def _usage_gemini(data):
+    meta = data.get("usageMetadata") or {}
+    return _mk_usage(meta.get("promptTokenCount"), meta.get("candidatesTokenCount"))
+
+
+def _usage_ollama(data):
+    return _mk_usage(data.get("prompt_eval_count"), data.get("eval_count"))
+
+
 def _chat_openai(base_url, api_key, model, messages, system, temperature, max_tokens, timeout):
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {}
@@ -560,7 +585,8 @@ def _chat_openai(base_url, api_key, model, messages, system, temperature, max_to
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    return _parse_openai(_http_post_json(url, payload, headers, timeout))
+    data = _http_post_json(url, payload, headers, timeout)
+    return _parse_openai(data), _usage_openai(data)
 
 
 def _chat_anthropic(base_url, api_key, model, messages, system, temperature, max_tokens, timeout):
@@ -574,7 +600,8 @@ def _chat_anthropic(base_url, api_key, model, messages, system, temperature, max
     }
     if system:
         payload["system"] = system
-    return _parse_anthropic(_http_post_json(url, payload, headers, timeout))
+    data = _http_post_json(url, payload, headers, timeout)
+    return _parse_anthropic(data), _usage_anthropic(data)
 
 
 def _chat_gemini(base_url, api_key, model, messages, system, temperature, max_tokens, timeout):
@@ -593,7 +620,8 @@ def _chat_gemini(base_url, api_key, model, messages, system, temperature, max_to
     }
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
-    return _parse_gemini(_http_post_json(url, payload, headers, timeout))
+    data = _http_post_json(url, payload, headers, timeout)
+    return _parse_gemini(data), _usage_gemini(data)
 
 
 def _chat_azure(base_url, api_key, model, messages, system, temperature, max_tokens, timeout):
@@ -609,7 +637,8 @@ def _chat_azure(base_url, api_key, model, messages, system, temperature, max_tok
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    return _parse_openai(_http_post_json(url, payload, headers, timeout))
+    data = _http_post_json(url, payload, headers, timeout)
+    return _parse_openai(data), _usage_openai(data)
 
 
 def _chat_ollama(base_url, api_key, model, messages, system, temperature, max_tokens, timeout):
@@ -625,8 +654,10 @@ def _chat_ollama(base_url, api_key, model, messages, system, temperature, max_to
     }
     data = _http_post_json(url, payload, headers, timeout)
     if "message" in data and isinstance(data["message"], dict):
-        return data["message"].get("content", "")
-    return _parse_openai(data)
+        text = data["message"].get("content", "")
+    else:
+        text = _parse_openai(data)
+    return text, _usage_ollama(data)
 
 
 _PROTOCOL_HANDLERS = {
@@ -639,10 +670,11 @@ _PROTOCOL_HANDLERS = {
 
 
 def chat(provider_id, api_key, model, base_url, messages, system="",
-         temperature=0.3, max_tokens=1024, timeout=120):
+         temperature=0.3, max_tokens=1024, timeout=120, on_usage=None):
     """Send a chat request and return the assistant's text response.
 
     messages is a list of {"role": "user"|"assistant", "content": str}.
+    on_usage, if given, is called with {"input": n, "output": n} when available.
     """
     spec = PROVIDERS.get(provider_id)
     if spec is None:
@@ -663,10 +695,16 @@ def chat(provider_id, api_key, model, base_url, messages, system="",
 
     handler = _PROTOCOL_HANDLERS[spec["protocol"]]
     try:
-        return handler(
+        text, usage = handler(
             base_url, api_key, model, messages, system,
             temperature, max_tokens, timeout,
         )
+        if on_usage is not None:
+            try:
+                on_usage(usage)
+            except Exception:
+                pass
+        return text
     except ProviderError:
         raise
     except socket.timeout:
@@ -720,10 +758,14 @@ def _stream_openai(base_url, api_key, model, messages, system, temperature,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     parts = []
+    usage = None
     with _open_stream(url, payload, headers, timeout) as response:
         for obj in _sse_objects(response):
+            if obj.get("usage"):
+                usage = _usage_openai(obj)
             try:
                 delta = obj["choices"][0].get("delta", {}).get("content")
             except (KeyError, IndexError, TypeError):
@@ -731,7 +773,7 @@ def _stream_openai(base_url, api_key, model, messages, system, temperature,
             if delta:
                 parts.append(delta)
                 on_chunk(delta)
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 def _stream_azure(base_url, api_key, model, messages, system, temperature,
@@ -748,10 +790,14 @@ def _stream_azure(base_url, api_key, model, messages, system, temperature,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     parts = []
+    usage = None
     with _open_stream(url, payload, headers, timeout) as response:
         for obj in _sse_objects(response):
+            if obj.get("usage"):
+                usage = _usage_openai(obj)
             try:
                 delta = obj["choices"][0].get("delta", {}).get("content")
             except (KeyError, IndexError, TypeError):
@@ -759,7 +805,7 @@ def _stream_azure(base_url, api_key, model, messages, system, temperature,
             if delta:
                 parts.append(delta)
                 on_chunk(delta)
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 def _stream_anthropic(base_url, api_key, model, messages, system, temperature,
@@ -776,14 +822,23 @@ def _stream_anthropic(base_url, api_key, model, messages, system, temperature,
     if system:
         payload["system"] = system
     parts = []
+    input_tokens = None
+    output_tokens = None
     with _open_stream(url, payload, headers, timeout) as response:
         for obj in _sse_objects(response):
-            if obj.get("type") == "content_block_delta":
+            kind = obj.get("type")
+            if kind == "message_start":
+                usage = (obj.get("message") or {}).get("usage") or {}
+                input_tokens = usage.get("input_tokens", input_tokens)
+            elif kind == "message_delta":
+                usage = obj.get("usage") or {}
+                output_tokens = usage.get("output_tokens", output_tokens)
+            if kind == "content_block_delta":
                 text = obj.get("delta", {}).get("text")
                 if text:
                     parts.append(text)
                     on_chunk(text)
-    return "".join(parts)
+    return "".join(parts), _mk_usage(input_tokens, output_tokens)
 
 
 def _stream_gemini(base_url, api_key, model, messages, system, temperature,
@@ -805,15 +860,18 @@ def _stream_gemini(base_url, api_key, model, messages, system, temperature,
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
     parts = []
+    usage = None
     with _open_stream(url, payload, headers, timeout) as response:
         for obj in _sse_objects(response):
+            if obj.get("usageMetadata"):
+                usage = _usage_gemini(obj)
             for candidate in obj.get("candidates", []) or []:
                 for part in candidate.get("content", {}).get("parts", []) or []:
                     text = part.get("text")
                     if text:
                         parts.append(text)
                         on_chunk(text)
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 def _stream_ollama(base_url, api_key, model, messages, system, temperature,
@@ -829,6 +887,7 @@ def _stream_ollama(base_url, api_key, model, messages, system, temperature,
         "options": {"temperature": temperature, "num_predict": max_tokens},
     }
     parts = []
+    usage = None
     with _open_stream(url, payload, headers, timeout) as response:
         for raw in response:
             line = raw.decode("utf-8", "replace").strip()
@@ -842,9 +901,12 @@ def _stream_ollama(base_url, api_key, model, messages, system, temperature,
             if text:
                 parts.append(text)
                 on_chunk(text)
+            candidate = _usage_ollama(obj)
+            if candidate:
+                usage = candidate
             if obj.get("done"):
                 break
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 _STREAM_HANDLERS = {
@@ -857,11 +919,12 @@ _STREAM_HANDLERS = {
 
 
 def chat_stream(provider_id, api_key, model, base_url, messages, system="",
-                temperature=0.3, max_tokens=1024, timeout=120, on_chunk=None):
+                temperature=0.3, max_tokens=1024, timeout=120, on_chunk=None,
+                on_usage=None):
     """Like chat() but calls on_chunk(delta) as text arrives.
 
     Falls back to a single non-streaming response if streaming is unavailable.
-    Returns the full assistant text.
+    on_usage, if given, receives {"input": n, "output": n}. Returns the text.
     """
     spec = PROVIDERS.get(provider_id)
     if spec is None:
@@ -879,13 +942,19 @@ def chat_stream(provider_id, api_key, model, base_url, messages, system="",
     handler = _STREAM_HANDLERS.get(spec["protocol"])
     if handler is None or on_chunk is None:
         reply = chat(provider_id, api_key, model, base_url, messages, system,
-                     temperature, max_tokens, timeout)
+                     temperature, max_tokens, timeout, on_usage=on_usage)
         if on_chunk is not None:
             on_chunk(reply)
         return reply
     try:
-        return handler(base_url, api_key, model, messages, system,
-                       temperature, max_tokens, timeout, on_chunk)
+        text, usage = handler(base_url, api_key, model, messages, system,
+                              temperature, max_tokens, timeout, on_chunk)
+        if on_usage is not None:
+            try:
+                on_usage(usage)
+            except Exception:
+                pass
+        return text
     except ProviderError:
         raise
     except socket.timeout:

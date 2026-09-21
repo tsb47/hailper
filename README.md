@@ -34,6 +34,19 @@ Python packages are required.
   orientation, and insert tables, via a structured `{"format": [...]}`
   directive. Each batch is one undo step and document-wide/page changes are
   confirmed first.
+- **Action dropdown + personas** – one selector for every action, and personas
+  (General, Editor, Reviewer, Researcher) that set the system prompt, model,
+  temperature and which actions are available.
+- **Custom actions** – save your own prompts in
+  `~/.config/hailper/actions.json`; they appear in the dropdown and the
+  right-click menu.
+- **Token / cost meter** – per-request tokens, estimated cost (with editable
+  price overrides) and context-window usage, for cloud and local models.
+- **Document outline awareness** – the model is given the heading outline, and
+  formatting/actions can target a section by heading.
+- **Agent mode** – an explicit multi-step loop where the model uses the edit,
+  format and document tools until the task is done.
+- **Starter prompts** and **saved conversations** (History picker).
 - **Per-action options** – format/length, style/length, language/register,
   proofread categories/severity (remembered per action).
 - **Rewrite diff** – compare original vs suggested and Accept/Reject.
@@ -101,9 +114,12 @@ menu, the toolbar, the **Extension** tab, the right-click menu, or the panel's
 own **Action** dropdown) appends a turn to the transcript, and you can keep
 chatting with the document in context. Use **New chat** to start over.
 
-The panel keeps quick actions: choose one in the **Action** dropdown (Chat,
-Summarize, Rewrite, Translate, Proofread, Continue, Explain), or run one from
-the menu / right-click menu.
+Choose an action in the **Action** dropdown (Chat, Summarize, Rewrite,
+Translate, Proofread, Continue, Explain, plus any custom actions) and a
+**Persona** below it, or run an action from the menu / right-click menu. The
+header buttons are the **model picker** (gear), **starter prompts**, **saved
+conversations** and the **agent-mode** toggle. A usage line under the input
+shows tokens, estimated cost and context-window use.
 
 The transcript scrolls on its own and auto-scrolls to the newest message, and
 `You` / `HaiLPER` turns are labelled and separated.
