@@ -163,6 +163,7 @@ class _Bridge(object):
         self.conversation_id = None
         self.starter_chips = []
         self._chips_visible = False
+        self.feedback_mode = None
         try:
             cp_actions.register()
         except Exception:
@@ -304,6 +305,10 @@ class _Bridge(object):
                 HelpText="Starter prompt")
         add("com.sun.star.awt.UnoControlFixedText", "status",
             PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="")
+        add("com.sun.star.awt.UnoControlButton", "feedback_btn",
+            PositionX=0, PositionY=0, Width=56, Height=LINE_H + 4,
+            Label="Undo", FontHeight=7.0,
+            HelpText="Undo the last change, or retry after an error")
         add("com.sun.star.awt.UnoControlFixedText", "usage_label",
             PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="")
         for slot in range(SLOTS):
@@ -351,6 +356,11 @@ class _Bridge(object):
         except Exception:
             pass
         try:
+            self.dialog.getControl("feedback_btn").addActionListener(
+                ui.ActionListener(lambda event: self.on_feedback()))
+        except Exception:
+            pass
+        try:
             self._normal_text_color = self.dialog.getControl(
                 "instruction").getModel().getPropertyValue("TextColor")
         except Exception:
@@ -372,6 +382,7 @@ class _Bridge(object):
             except Exception:
                 pass
         self.built = True
+        self._set_feedback(None)
         self.apply_meta()
 
     # ------------------------------------------------------------- layout
@@ -492,7 +503,8 @@ class _Bridge(object):
             positions["provider_label"] = (PAD, y, 30, LINE_H)
             positions["model_choice"] = (PAD + 32, y, content_w - 32, LINE_H + 3)
             y += LINE_H + 4
-        positions["status"] = (PAD, y, content_w, LINE_H)
+        positions["status"] = (PAD, y, content_w - 58, LINE_H)
+        positions["feedback_btn"] = (PAD + content_w - 56, y - 1, 56, LINE_H + 3)
         y += LINE_H + 4
         positions["usage_label"] = (PAD, y, content_w, LINE_H)
         y += LINE_H + 4
@@ -575,7 +587,7 @@ class _Bridge(object):
         for name in ("action_label", "action_choice", "persona_label",
                      "persona_choice", "usage_label", "menu_btn",
                      "scope_label", "scope_choice", "using_label",
-                     "chip_0", "chip_1", "chip_2"):
+                     "feedback_btn", "chip_0", "chip_1", "chip_2"):
             try:
                 self.dialog.getControl(name).setVisible(False)
             except Exception:
@@ -1273,6 +1285,7 @@ class _Bridge(object):
         self.gen_id += 1
         self.streaming = False
         self.streaming_partial = ""
+        self._set_feedback(None)
         ui.log("start_request provider=%s model=%s stream=%s"
                % (provider_id, model, stream))
         self._set_busy(True)
@@ -1450,6 +1463,7 @@ class _Bridge(object):
                 self._set_status("Request timed out \u2014 raise the timeout in Settings.")
             else:
                 self._set_status("Error: %s" % error)
+            self._set_feedback("retry")
             return
 
         raw = payload.get("text", "")
@@ -1578,9 +1592,34 @@ class _Bridge(object):
         if ok:
             self._set_last_applied("Formatted text inserted")
 
+    def _set_feedback(self, mode):
+        self.feedback_mode = mode
+        try:
+            control = self.dialog.getControl("feedback_btn")
+            if mode:
+                control.setLabel("Undo" if mode == "undo" else "Retry")
+                control.setVisible(True)
+            else:
+                control.setVisible(False)
+        except Exception:
+            pass
+
+    def on_feedback(self):
+        mode = self.feedback_mode
+        self._set_feedback(None)
+        if mode == "undo":
+            document = self._current_document()
+            if document is not None and cp_document.undo_last(document):
+                self._set_status("Undone.")
+            else:
+                self._set_status("Nothing to undo.")
+        elif mode == "retry":
+            self.on_generate()
+
     def _set_last_applied(self, message):
         self.last_applied = message
         self._set_status("%s \u00b7 Undo to revert." % message)
+        self._set_feedback("undo")
 
     def _apply_to_document(self, mode):
         text = self._result_for_apply().strip()
@@ -1600,6 +1639,8 @@ class _Bridge(object):
         else:
             ok, message = doc_ctx.add_comment(text), "Added as a comment."
         self._set_status(message if ok else "Could not apply to this document.")
+        if ok:
+            self._set_feedback("undo")
 
     def on_copy(self):
         text = _visible_text(self.dialog, self._result_for_apply())
@@ -1702,6 +1743,7 @@ class _Bridge(object):
         if cp_document.replace_first(document, item["original"],
                                      item["replacement"], tracked=tracked):
             self.review_fixed += 1
+            self._set_feedback("undo")
         else:
             self.review_ignored += 1
             self._set_status("Could not find the original text; skipped.")
@@ -1723,6 +1765,8 @@ class _Bridge(object):
         self.review_fixed += adopted
         self.review_index = len(self.suggestions)
         self._set_status("Adopted %d suggestion(s)." % adopted)
+        if adopted:
+            self._set_feedback("undo")
         self._exit_review()
 
     def _exit_review(self):
@@ -1815,6 +1859,8 @@ class _Bridge(object):
         message = ("Adopted the %s." % action) if ok \
             else ("Could not apply the %s." % action)
         self.add_history_line("HaiLPER", message)
+        if ok:
+            self._set_feedback("undo")
         self._exit_proposal()
 
     def on_reject_proposal(self):

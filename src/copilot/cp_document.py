@@ -61,6 +61,20 @@ def record_changes(doc):
                 pass
 
 
+def undo_last(doc):
+    """Undo the most recent undoable action; returns True on success."""
+    try:
+        supplier = doc.queryInterface(
+            uno.getTypeByName("com.sun.star.document.XUndoManagerSupplier"))
+        manager = supplier.getUndoManager()
+        if manager is not None and manager.isUndoPossible():
+            manager.undo()
+            return True
+    except Exception:
+        pass
+    return False
+
+
 @contextmanager
 def undo_context(doc, title="HaiLPER"):
     """Group the enclosed edits into a single undo step when possible."""
@@ -365,45 +379,48 @@ class DocumentContext(object):
                 text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
             state["first"] = False
 
-        for block in blocks:
-            kind = block["type"]
-            if kind == "heading":
-                new_paragraph()
-                self._insert_runs(cursor, block["text"])
-                if not self._try_para_style(
-                        cursor, "Heading %d" % min(block["level"], 10)):
-                    self._apply_range_prop(cursor, "CharWeight", 150.0)
-                    self._apply_range_prop(cursor, "CharHeight", 14.0)
-            elif kind == "paragraph":
-                new_paragraph()
-                self._insert_runs(cursor, block["text"])
-            elif kind in ("bullets", "ordered"):
-                counters = {}
-                for indent, item in block["items"]:
+        with undo_context(self.doc, "HaiLPER formatted insert"):
+            for block in blocks:
+                kind = block["type"]
+                if kind == "heading":
                     new_paragraph()
-                    if kind == "bullets":
-                        prefix = "    " * indent + "\u2022 "
-                    else:
-                        counters[indent] = counters.get(indent, 0) + 1
-                        prefix = "    " * indent + "%d. " % counters[indent]
-                    text.insertString(cursor, prefix, False)
-                    self._insert_runs(cursor, item)
-            elif kind == "code":
-                for line in block["text"].split("\n"):
+                    self._insert_runs(cursor, block["text"])
+                    if not self._try_para_style(
+                            cursor, "Heading %d" % min(block["level"], 10)):
+                        self._apply_range_prop(cursor, "CharWeight", 150.0)
+                        self._apply_range_prop(cursor, "CharHeight", 14.0)
+                elif kind == "paragraph":
                     new_paragraph()
-                    self._insert_runs(cursor, line)
-                    self._apply_range_prop(cursor, "CharFontName", "Liberation Mono")
-            elif kind == "quote":
-                for line in block["text"].split("\n"):
+                    self._insert_runs(cursor, block["text"])
+                elif kind in ("bullets", "ordered"):
+                    counters = {}
+                    for indent, item in block["items"]:
+                        new_paragraph()
+                        if kind == "bullets":
+                            prefix = "    " * indent + "\u2022 "
+                        else:
+                            counters[indent] = counters.get(indent, 0) + 1
+                            prefix = "    " * indent + "%d. " % counters[indent]
+                        text.insertString(cursor, prefix, False)
+                        self._insert_runs(cursor, item)
+                elif kind == "code":
+                    for line in block["text"].split("\n"):
+                        new_paragraph()
+                        self._insert_runs(cursor, line)
+                        self._apply_range_prop(cursor, "CharFontName",
+                                               "Liberation Mono")
+                elif kind == "quote":
+                    for line in block["text"].split("\n"):
+                        new_paragraph()
+                        self._insert_runs(cursor, line)
+                        self._apply_range_prop(cursor, "CharPosture", 2)
+                elif kind == "rule":
                     new_paragraph()
-                    self._insert_runs(cursor, line)
-                    self._apply_range_prop(cursor, "CharPosture", 2)
-            elif kind == "rule":
-                new_paragraph()
-                text.insertString(cursor, "\u2500" * 40, False)
-            elif kind == "table":
-                new_paragraph()
-                cursor = self._insert_markdown_table(text, cursor, block["rows"])
+                    text.insertString(cursor, "\u2500" * 40, False)
+                elif kind == "table":
+                    new_paragraph()
+                    cursor = self._insert_markdown_table(text, cursor,
+                                                         block["rows"])
         return True
 
     def _markdown_cursor(self, text, replace):

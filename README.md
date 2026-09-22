@@ -122,7 +122,9 @@ prompts**, **saved conversations**, **New chat** and the **agent-mode** toggle.
 A **Scope** control chooses Selection or Document, a "Using: …" line shows what
 will be read, and a usage line shows tokens, cost and context-window use.
 Answers are rendered as Markdown in the transcript; **Insert formatted** applies
-that Markdown to the document as real Writer styles.
+that Markdown to the document as real Writer styles. After a change the status
+area offers **Undo** (formatted inserts undo in one step), and after an error it
+offers **Retry**.
 
 The transcript scrolls on its own and auto-scrolls to the newest message, and
 `You` / `HaiLPER` turns are labelled and separated.

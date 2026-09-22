@@ -4,6 +4,14 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] - 2026-09-22
+
+### Added
+
+- **Undo / Retry button** in the status area: after inserting, adopting or
+  formatting it offers **Undo** (one click reverts the change; formatted inserts
+  undo as a single step); after an error it offers **Retry**.
+
 ## [1.3.1] - 2026-09-22
 
 ### Changed
