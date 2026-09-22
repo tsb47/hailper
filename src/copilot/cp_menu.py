@@ -57,7 +57,7 @@ class _Bridge(object):
                 add("com.sun.star.awt.UnoControlButton",
                     "starter_%d" % index,
                     PositionX=PAD, PositionY=y, Width=content_w, Height=BTN_H,
-                    Label=starter[:52], FontHeight=7.0)
+                    Label=starter[:52], FontHeight=5.0)
                 y += BTN_H + 4
         add("com.sun.star.awt.UnoControlButton", "btn_history",
             PositionX=PAD, PositionY=y, Width=content_w, Height=BTN_H,

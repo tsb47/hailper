@@ -4,6 +4,15 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.4] - 2026-09-22
+
+### Changed
+
+- **Scope is automatic**: the current selection when there is one, otherwise the
+  whole document. The Scope control and the "Using …" line were removed.
+- **Starter cards** hide as soon as you start typing and are more compact.
+- Interface **font size reduced by 2 pt** across the panel for a denser layout.
+
 ## [1.3.3] - 2026-09-22
 
 ### Changed

@@ -7,6 +7,7 @@ from com.sun.star.awt import XActionListener
 from com.sun.star.awt import XCallback
 from com.sun.star.awt import XFocusListener
 from com.sun.star.awt import XItemListener
+from com.sun.star.awt import XTextListener
 from com.sun.star.datatransfer import DataFlavor
 from com.sun.star.datatransfer import XTransferable
 
@@ -40,7 +41,7 @@ def create_model(dialog_model, service, name, **props):
     model.setPropertyValue("Name", name)
     if "FontHeight" not in props:
         try:
-            model.setPropertyValue("FontHeight", 8.0)
+            model.setPropertyValue("FontHeight", 6.0)
         except Exception:
             pass
     for key, value in props.items():
@@ -164,6 +165,17 @@ class FocusListener(unohelper.Base, XFocusListener):
     def focusLost(self, event):
         if callable(self._lost):
             self._lost()
+
+    def disposing(self, event):
+        pass
+
+
+class TextListener(unohelper.Base, XTextListener):
+    def __init__(self, callback):
+        self._callback = callback
+
+    def textChanged(self, event):
+        self._callback(event)
 
     def disposing(self, event):
         pass

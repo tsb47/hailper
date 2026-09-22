@@ -31,7 +31,7 @@ def _create_model(dialog_model, service, name, **props):
     model.setPropertyValue("Name", name)
     if "FontHeight" not in props:
         try:
-            model.setPropertyValue("FontHeight", 8.0)
+            model.setPropertyValue("FontHeight", 6.0)
         except Exception:
             pass
     for key, value in props.items():
