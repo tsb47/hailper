@@ -8,6 +8,7 @@ Each action presents its own contextual set of buttons (for example Summarize
 offers "New document", Proofread offers "Review suggestions").
 """
 
+import json
 import threading
 import time
 
@@ -30,6 +31,7 @@ import cp_menu
 import cp_personas
 import cp_prompts
 import cp_providers
+import cp_tools
 import cp_usage
 import cp_ui as ui
 
@@ -165,6 +167,13 @@ class _Bridge(object):
         self.starter_chips = []
         self._chips_visible = False
         self.feedback_mode = None
+        self.use_tools = False
+        self.tool_active = False
+        self.tool_tools = []
+        self.tool_messages = []
+        self.tool_system = ""
+        self.tool_steps = 0
+        self.tool_provider = ""
         try:
             cp_actions.register()
         except Exception:
@@ -1100,11 +1109,15 @@ class _Bridge(object):
             system = (persona_prompt + "\n\n" + system) if system else persona_prompt
         if system_extra:
             system = (system + "\n\n" + system_extra) if system else system_extra
-        system = self._with_hints(system)
+
+        # Native tool calling when the provider supports it; otherwise fall back
+        # to prompt-driven JSON directives.
+        self.use_tools = bool(cp_tools.tools_for(self.config))
+        system = self._with_hints(system, include_directives=not self.use_tools)
 
         agent_on = self.agent_mode or bool(
             (self.config.get("agents") or {}).get("enabled", False))
-        if agent_on:
+        if agent_on and not self.use_tools:
             system = (system + "\n\n" + cp_agents.AGENT_HINT) if system \
                 else cp_agents.AGENT_HINT
             self.agent_active = True
@@ -1125,13 +1138,14 @@ class _Bridge(object):
 
         self._start_request(messages, system)
 
-    def _with_hints(self, system):
+    def _with_hints(self, system, include_directives=True):
         hints = []
-        if self.config.get("allow_edits"):
+        if include_directives and self.config.get("allow_edits"):
             hints.append(cp_prompts.EDIT_HINT)
-        if self.config.get("allow_document_access") and self.action == "chat":
+        if (include_directives and self.config.get("allow_document_access")
+                and self.action == "chat"):
             hints.append(cp_prompts.DOCUMENT_REQUEST_HINT)
-        if self.config.get("allow_formatting"):
+        if include_directives and self.config.get("allow_formatting"):
             try:
                 doc_ctx = self._current_doc_ctx()
                 if doc_ctx is not None and doc_ctx.kind == cp_document.WRITER:
@@ -1143,7 +1157,7 @@ class _Bridge(object):
             system = (system + "\n\n" + block) if system else block
         return system
 
-    def _start_request(self, messages, system):
+    def _start_request(self, messages, system, tools=None, steps=None):
         provider_id, spec, api_key, model, base_url = cp_config.active_provider(self.config)
         persona = cp_personas.active(self.config)
         if persona.get("model"):
@@ -1157,22 +1171,64 @@ class _Bridge(object):
             temperature = float(self.config.get("temperature", 0.3))
         max_tokens = int(self.config.get("max_tokens", 1024))
         timeout = int(self.config.get("timeout", 120))
-        stream = bool(self.config.get("stream", True)) \
-            and self.pending_action != "proofread"
+
+        if tools is None:
+            tools = cp_tools.tools_for(self.config) \
+                if getattr(self, "use_tools", False) else []
+        if steps is None:
+            steps = int((self.config.get("agents") or {}).get("max_steps", 6)) \
+                if self.agent_mode else 3
+        self.tool_active = bool(tools)
+        self.tool_tools = tools
+        self.tool_messages = list(messages)
+        self.tool_system = system
+        self.tool_provider = provider_id
+        self.tool_steps = steps if tools else 0
+
+        stream = (bool(self.config.get("stream", True))
+                  and self.pending_action != "proofread" and not tools)
         self.gen_id += 1
         self.streaming = False
         self.streaming_partial = ""
         self._set_feedback(None)
-        ui.log("start_request provider=%s model=%s stream=%s"
-               % (provider_id, model, stream))
+        ui.log("start_request provider=%s model=%s stream=%s tools=%d"
+               % (provider_id, model, stream, len(tools)))
         self._set_busy(True)
         self._set_status("Contacting %s (%s)..." % (spec["label"], model))
         threading.Thread(
             target=self._worker,
             args=(self.gen_id, provider_id, api_key, model, base_url, messages,
-                  system, temperature, max_tokens, timeout, stream),
+                  system, temperature, max_tokens, timeout, stream, tools or None),
             daemon=True,
         ).start()
+
+    def _run_tools(self, calls, raw_message_json):
+        doc_ctx = self._current_doc_ctx()
+        results = []
+        for call in calls:
+            name = call.get("name")
+            arguments = call.get("arguments")
+            content = cp_tools.execute(doc_ctx, name, arguments, self.config)
+            results.append({"id": call.get("id") or name, "name": name,
+                            "content": content})
+            self.add_history_line(
+                "HaiLPER", "\u2699 %s \u2192 %s"
+                % (name, content.split("\n")[0][:90]))
+        try:
+            raw = json.loads(raw_message_json) if raw_message_json else None
+        except ValueError:
+            raw = None
+        self.tool_messages.extend(cp_providers.tool_result_messages(
+            self.tool_provider, raw, results))
+        self.tool_steps -= 1
+        if self.tool_steps <= 0:
+            self.tool_active = False
+            self._set_busy(False)
+            self._set_status("Tool step limit reached.")
+            return
+        self._set_status("Using tools\u2026 %d step(s) left" % self.tool_steps)
+        self._start_request(self.tool_messages, self.tool_system,
+                            self.tool_tools, self.tool_steps)
 
     def _apply_directive_edit(self, edit):
         action = edit.get("action", "")
@@ -1259,11 +1315,13 @@ class _Bridge(object):
         self.gen_id += 1
         self.agent_active = False
         self.agent_steps = 0
+        self.tool_active = False
+        self.tool_steps = 0
         self._set_busy(False)
         self._set_status("Cancelled.")
 
     def _worker(self, gen_id, provider_id, api_key, model, base_url, messages, system,
-                temperature, max_tokens, timeout, stream=False):
+                temperature, max_tokens, timeout, stream=False, tools=None):
         def on_chunk(delta):
             if gen_id != self.gen_id:
                 raise RuntimeError("cancelled")
@@ -1286,17 +1344,27 @@ class _Bridge(object):
                 pass
 
         try:
-            if stream:
+            if tools:
+                reply, calls, _usage, raw = cp_providers.chat_tools(
+                    provider_id, api_key, model, base_url, messages, system,
+                    tools, temperature, max_tokens, timeout, on_usage,
+                )
+                payload = ui.payload(
+                    ok=True, text=reply, gen=gen_id,
+                    tool_calls=json.dumps(calls),
+                    raw_message=json.dumps(raw) if raw is not None else "")
+            elif stream:
                 reply = cp_providers.chat_stream(
                     provider_id, api_key, model, base_url, messages, system,
                     temperature, max_tokens, timeout, on_chunk, on_usage,
                 )
+                payload = ui.payload(ok=True, text=reply, gen=gen_id)
             else:
                 reply = cp_providers.chat(
                     provider_id, api_key, model, base_url, messages, system,
                     temperature, max_tokens, timeout, on_usage=on_usage,
                 )
-            payload = ui.payload(ok=True, text=reply, gen=gen_id)
+                payload = ui.payload(ok=True, text=reply, gen=gen_id)
         except Exception as error:  # noqa: BLE001
             payload = ui.payload(ok=False, error=str(error), gen=gen_id)
         try:
@@ -1342,6 +1410,17 @@ class _Bridge(object):
                 self._set_status("Error: %s" % error)
             self._set_feedback("retry")
             return
+
+        # Native tool calls: execute and continue the loop.
+        calls_raw = payload.get("tool_calls")
+        if calls_raw and self.tool_active:
+            try:
+                calls = json.loads(calls_raw)
+            except ValueError:
+                calls = []
+            if calls and self.tool_steps > 0:
+                self._run_tools(calls, payload.get("raw_message") or "")
+                return
 
         raw = payload.get("text", "")
         text = cp_prompts.strip_directives(raw)

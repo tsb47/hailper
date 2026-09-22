@@ -46,6 +46,8 @@ DEFAULTS = {
     "allow_edits": True,
     "allow_document_access": True,
     "allow_formatting": True,
+    "allow_web": True,
+    "web": {"backend": "auto", "base_url": ""},
     "track_changes": True,
     "remember_keys": True,
     "stream": True,

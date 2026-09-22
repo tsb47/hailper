@@ -19,7 +19,9 @@ import cp_personas  # noqa: E402
 import cp_prompts  # noqa: E402
 import cp_providers  # noqa: E402
 import cp_secrets  # noqa: E402
+import cp_tools  # noqa: E402
 import cp_usage  # noqa: E402
+import cp_web  # noqa: E402
 
 
 class TestDirectives(unittest.TestCase):
@@ -306,6 +308,55 @@ class TestMarkdown(unittest.TestCase):
         self.assertIn("X", plain)
         self.assertNotIn("**", plain)
         self.assertNotIn("#", plain)
+
+
+class TestTools(unittest.TestCase):
+    def test_all_permissions(self):
+        names = {tool["name"] for tool in cp_tools.tools_for({})}
+        self.assertIn("read_document", names)
+        self.assertIn("replace_text", names)
+        self.assertIn("format_text", names)
+
+    def test_read_only(self):
+        names = {tool["name"] for tool in cp_tools.tools_for(
+            {"allow_edits": False, "allow_formatting": False})}
+        self.assertIn("read_document", names)
+        self.assertNotIn("replace_text", names)
+        self.assertNotIn("format_text", names)
+
+    def test_schema_shape(self):
+        for tool in cp_tools.TOOLS:
+            self.assertIn("name", tool)
+            self.assertIn("description", tool)
+            self.assertIn("parameters", tool)
+            self.assertEqual(tool["parameters"]["type"], "object")
+
+    def test_web_gated(self):
+        with_web = {t["name"] for t in cp_tools.tools_for({"allow_web": True})}
+        without = {t["name"] for t in cp_tools.tools_for({"allow_web": False})}
+        self.assertIn("web_search", with_web)
+        self.assertNotIn("web_search", without)
+
+
+class TestWebParsing(unittest.TestCase):
+    def test_strip_html(self):
+        text = cp_web._strip_html("<p>Hello <b>world</b></p><script>x=1</script>")
+        self.assertIn("Hello", text)
+        self.assertIn("world", text)
+        self.assertNotIn("x=1", text)
+
+    def test_ddg_url(self):
+        url = cp_web._ddg_url("//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa")
+        self.assertEqual(url, "https://example.com/a")
+
+    def test_format_results(self):
+        out = cp_web.format_results([{"title": "T", "url": "U", "snippet": "S"}])
+        self.assertIn("T", out)
+        self.assertIn("U", out)
+
+    def test_fetch_rejects_non_http(self):
+        with self.assertRaises(cp_web.WebError):
+            cp_web.fetch("file:///etc/passwd")
 
 
 class TestAgentHint(unittest.TestCase):

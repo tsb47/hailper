@@ -204,6 +204,10 @@ timeout and the system prompt. Two permissions control what the model may do:
   lets the model apply character/paragraph formatting, existing styles, page
   layout and tables. It is given the document's available style names and is
   told to only format when you ask.
+- **Allow HaiLPER to search the web** (on by default) — adds `web_search` and
+  `fetch_url` tools so the model can look things up. No API key is needed
+  (DuckDuckGo with a Wikipedia fallback); a SearXNG instance can be set via
+  `web.base_url` in the config.
 - **Apply Rewrite / Proofread as tracked changes** (Writer, on by default) —
   edits arrive as accept/reject tracked changes instead of silent replacements;
   the buttons read **Suggest (tracked)** / **Adopt (tracked)**. *Adopt all*

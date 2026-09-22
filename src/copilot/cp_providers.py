@@ -713,6 +713,234 @@ def chat(provider_id, api_key, model, base_url, messages, system="",
         raise ProviderError("%s: %s" % (type(error).__name__, error))
 
 
+# --------------------------------------------------------------- tool calling
+def _openai_tool_specs(tools):
+    return [{"type": "function",
+             "function": {"name": t["name"], "description": t["description"],
+                          "parameters": t["parameters"]}} for t in tools]
+
+
+def _anthropic_tool_specs(tools):
+    return [{"name": t["name"], "description": t["description"],
+             "input_schema": t["parameters"]} for t in tools]
+
+
+def _gemini_tool_specs(tools):
+    return [{"functionDeclarations": [
+        {"name": t["name"], "description": t["description"],
+         "parameters": t["parameters"]} for t in tools]}]
+
+
+def _parse_openai_tool_calls(message):
+    calls = []
+    for call in message.get("tool_calls") or []:
+        function = call.get("function") or {}
+        try:
+            arguments = json.loads(function.get("arguments") or "{}")
+        except ValueError:
+            arguments = {}
+        calls.append({"id": call.get("id") or function.get("name"),
+                      "name": function.get("name"), "arguments": arguments})
+    return calls
+
+
+def _chat_tools_openai(base_url, api_key, model, messages, system, tools,
+                       temperature, max_tokens, timeout):
+    url = base_url.rstrip("/") + "/chat/completions"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+    payload = {"model": model, "messages": _openai_messages(messages, system),
+               "temperature": temperature, "max_tokens": max_tokens}
+    if tools:
+        payload["tools"] = _openai_tool_specs(tools)
+        payload["tool_choice"] = "auto"
+    data = _http_post_json(url, payload, headers, timeout)
+    message = (data.get("choices") or [{}])[0].get("message") or {}
+    return (message.get("content") or "", _parse_openai_tool_calls(message),
+            _usage_openai(data), message)
+
+
+def _chat_tools_azure(base_url, api_key, model, messages, system, tools,
+                      temperature, max_tokens, timeout):
+    url = base_url.rstrip("/") + "/chat/completions"
+    if "api-version=" not in url:
+        url += ("&" if "?" in url else "?") + "api-version=2024-10-21"
+    headers = {}
+    if api_key:
+        headers["api-key"] = api_key
+    payload = {"model": model, "messages": _openai_messages(messages, system),
+               "temperature": temperature, "max_tokens": max_tokens}
+    if tools:
+        payload["tools"] = _openai_tool_specs(tools)
+        payload["tool_choice"] = "auto"
+    data = _http_post_json(url, payload, headers, timeout)
+    message = (data.get("choices") or [{}])[0].get("message") or {}
+    return (message.get("content") or "", _parse_openai_tool_calls(message),
+            _usage_openai(data), message)
+
+
+def _chat_tools_ollama(base_url, api_key, model, messages, system, tools,
+                       temperature, max_tokens, timeout):
+    url = base_url.rstrip("/") + "/api/chat"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+    payload = {"model": model, "messages": _openai_messages(messages, system),
+               "stream": False,
+               "options": {"temperature": temperature, "num_predict": max_tokens}}
+    if tools:
+        payload["tools"] = _openai_tool_specs(tools)
+    data = _http_post_json(url, payload, headers, timeout)
+    message = data.get("message") or {}
+    return (message.get("content") or "", _parse_openai_tool_calls(message),
+            _usage_ollama(data), message)
+
+
+def _chat_tools_anthropic(base_url, api_key, model, messages, system, tools,
+                          temperature, max_tokens, timeout):
+    url = base_url.rstrip("/") + "/messages"
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    payload = {"model": model, "max_tokens": max_tokens,
+               "temperature": temperature, "messages": messages}
+    if system:
+        payload["system"] = system
+    if tools:
+        payload["tools"] = _anthropic_tool_specs(tools)
+    data = _http_post_json(url, payload, headers, timeout)
+    content = data.get("content") or []
+    text = "".join(block.get("text", "") for block in content
+                   if isinstance(block, dict) and block.get("type") == "text")
+    calls = [{"id": block.get("id"), "name": block.get("name"),
+              "arguments": block.get("input") or {}}
+             for block in content
+             if isinstance(block, dict) and block.get("type") == "tool_use"]
+    return text, calls, _usage_anthropic(data), content
+
+
+def _gemini_contents(messages):
+    contents = []
+    for message in messages:
+        if "parts" in message:
+            contents.append({"role": message.get("role", "user"),
+                             "parts": message["parts"]})
+        else:
+            role = "user" if message.get("role") == "user" else "model"
+            contents.append({"role": role,
+                             "parts": [{"text": message.get("content", "")}]})
+    return contents
+
+
+def _chat_tools_gemini(base_url, api_key, model, messages, system, tools,
+                       temperature, max_tokens, timeout):
+    url = "%s/models/%s:generateContent" % (base_url.rstrip("/"), model)
+    headers = {"x-goog-api-key": api_key}
+    payload = {"contents": _gemini_contents(messages),
+               "generationConfig": {"temperature": temperature,
+                                    "maxOutputTokens": max_tokens}}
+    if system:
+        payload["systemInstruction"] = {"parts": [{"text": system}]}
+    if tools:
+        payload["tools"] = _gemini_tool_specs(tools)
+    data = _http_post_json(url, payload, headers, timeout)
+    candidate = (data.get("candidates") or [{}])[0]
+    content = candidate.get("content", {})
+    parts = content.get("parts", []) if isinstance(content, dict) else []
+    text = "".join(part.get("text", "") for part in parts
+                   if isinstance(part, dict) and "text" in part)
+    calls = []
+    for part in parts:
+        function_call = part.get("functionCall") if isinstance(part, dict) else None
+        if function_call:
+            calls.append({"id": function_call.get("name"),
+                          "name": function_call.get("name"),
+                          "arguments": function_call.get("args") or {}})
+    return text, calls, _usage_gemini(data), content
+
+
+_TOOL_HANDLERS = {
+    "openai": _chat_tools_openai,
+    "azure": _chat_tools_azure,
+    "ollama": _chat_tools_ollama,
+    "anthropic": _chat_tools_anthropic,
+    "gemini": _chat_tools_gemini,
+}
+
+
+def chat_tools(provider_id, api_key, model, base_url, messages, system="",
+               tools=None, temperature=0.3, max_tokens=1024, timeout=120,
+               on_usage=None):
+    """Call the model with native tool calling.
+
+    Returns (text, tool_calls, usage, raw_message). tool_calls is a list of
+    {id, name, arguments}; raw_message is provider-specific and must be passed
+    back to tool_result_messages().
+    """
+    spec = PROVIDERS.get(provider_id)
+    if spec is None:
+        raise ProviderError("Unknown provider: %s" % provider_id)
+    base_url = (base_url or spec["base_url"]).strip()
+    if not base_url:
+        raise ProviderError("No base URL configured for '%s'." % provider_id)
+    model = (model or spec["default_model"]).strip()
+    if not model:
+        raise ProviderError("No model configured for '%s'." % provider_id)
+    if spec["requires_key"] and not api_key:
+        raise ProviderError(
+            "No API key configured for %s. Open HaiLPER > Settings." % spec["label"])
+
+    handler = _TOOL_HANDLERS.get(spec["protocol"])
+    if handler is None or not tools:
+        text = chat(provider_id, api_key, model, base_url, messages, system,
+                    temperature, max_tokens, timeout, on_usage=on_usage)
+        return text, [], None, None
+    try:
+        text, calls, usage, raw = handler(
+            base_url, api_key, model, messages, system, tools,
+            temperature, max_tokens, timeout)
+        if on_usage is not None:
+            try:
+                on_usage(usage)
+            except Exception:
+                pass
+        return text, calls, usage, raw
+    except ProviderError:
+        raise
+    except socket.timeout:
+        raise ProviderError("The request timed out after %ss." % timeout)
+    except Exception as error:  # noqa: BLE001
+        raise ProviderError("%s: %s" % (type(error).__name__, error))
+
+
+def tool_result_messages(provider_id, raw_message, results):
+    spec = PROVIDERS.get(provider_id) or {}
+    protocol = spec.get("protocol")
+    if protocol in ("openai", "azure", "ollama"):
+        if raw_message is None:
+            return []
+        out = [{"role": "assistant",
+                "content": raw_message.get("content") or "",
+                "tool_calls": raw_message.get("tool_calls") or []}]
+        for item in results:
+            out.append({"role": "tool", "tool_call_id": item["id"],
+                        "content": item["content"]})
+        return out
+    if protocol == "anthropic":
+        out = [{"role": "assistant", "content": raw_message or []}]
+        out.append({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": item["id"],
+             "content": item["content"]} for item in results]})
+        return out
+    if protocol == "gemini":
+        out = [{"role": "model", "parts": (raw_message or {}).get("parts", [])}]
+        out.append({"role": "user", "parts": [
+            {"functionResponse": {"name": item["name"],
+                                  "response": {"result": item["content"]}}}
+            for item in results]})
+        return out
+    return []
+
+
 def _open_stream(url, payload, headers, timeout):
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=body, method="POST")

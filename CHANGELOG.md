@@ -4,6 +4,23 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-09-22
+
+### Added
+
+- **Native tool calling.** HaiLPER now sends real function/tool definitions to
+  the model (OpenAI-compatible incl. DeepSeek, Azure, Ollama, Anthropic and
+  Gemini) so it can call tools instead of emitting JSON in prose:
+  `read_document`, `get_outline`, `replace_text`, `insert_text`, `format_text`
+  and `insert_table`. Tool calls are executed on the document and their results
+  fed back, looping (up to 3 steps in normal use, `max_steps` in Agent mode).
+  Permissions gate the tools; providers without tool support fall back to the
+  prompted-JSON directives.
+- **Web research tools**: `web_search` and `fetch_url` let the model look things
+  up online. Works with no API key (DuckDuckGo with a Wikipedia fallback;
+  optional SearXNG via `web.base_url`), gated by a new *Allow HaiLPER to search
+  the web* setting.
+
 ## [1.3.4] - 2026-09-22
 
 ### Changed

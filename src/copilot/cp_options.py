@@ -253,6 +253,16 @@ class _OptionsBridge(object):
         )
         y += LINE_H + 2
         self.model.insertByName(
+            "allow_web",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlCheckBox",
+                "allow_web", PositionX=field_x, PositionY=y,
+                Width=field_w, Height=LINE_H,
+                Label="Allow HaiLPER to search the web for answers",
+            ),
+        )
+        y += LINE_H + 2
+        self.model.insertByName(
             "track_changes",
             _create_model(
                 self.model, "com.sun.star.awt.UnoControlCheckBox",
@@ -457,6 +467,7 @@ class _OptionsBridge(object):
         self._set_state("allow_formatting",
                         self.config.get("allow_formatting", True))
         self._set_state("track_changes", self.config.get("track_changes", True))
+        self._set_state("allow_web", self.config.get("allow_web", True))
         self._set_state("remember_keys", self.config.get("remember_keys", True))
         self._set_state("stream", self.config.get("stream", True))
         self._set_state("show_usage",
@@ -572,6 +583,7 @@ class _OptionsBridge(object):
         self.config["allow_edits"] = self._get_state("allow_edits")
         self.config["allow_document_access"] = self._get_state("allow_document_access")
         self.config["allow_formatting"] = self._get_state("allow_formatting")
+        self.config["allow_web"] = self._get_state("allow_web")
         self.config["track_changes"] = self._get_state("track_changes")
         self.config["remember_keys"] = self._get_state("remember_keys")
         self.config["stream"] = self._get_state("stream")

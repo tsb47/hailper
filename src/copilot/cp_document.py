@@ -439,6 +439,22 @@ class DocumentContext(object):
                                                          block["rows"])
         return True
 
+    def insert_table(self, rows, cols):
+        if self.kind != WRITER:
+            return False
+        try:
+            text = self.doc.getText()
+            view = self.writer_view_cursor()
+            if view is None:
+                return False
+            table = self.doc.createInstance("com.sun.star.text.TextTable")
+            table.initialize(max(1, int(rows)), max(1, int(cols)))
+            cursor = text.createTextCursorByRange(view.getStart())
+            text.insertTextContent(cursor, table, False)
+            return True
+        except Exception:
+            return False
+
     def _markdown_cursor(self, text, replace):
         if replace and self.has_selection() and self.selection is not None:
             cursor = text.createTextCursorByRange(self.selection)
