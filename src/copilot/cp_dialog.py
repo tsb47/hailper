@@ -1439,9 +1439,17 @@ class _Bridge(object):
                % (payload.get("ok"), payload.get("error")))
         self._set_busy(False)
         if not payload.get("ok"):
-            self._set_status("Error: %s" % payload.get("error", "unknown error"))
-            self.add_history_line("HaiLPER", "(error: %s)"
-                                  % payload.get("error", ""))
+            error = payload.get("error", "unknown error")
+            self.add_history_line("HaiLPER", "\u26a0\ufe0f %s" % error)
+            lowered = str(error).lower()
+            if any(token in lowered for token in
+                   ("api key", "authentication", "401", "403", "unauthor")):
+                self._set_status(
+                    "Auth error \u2014 open HaiLPER \u203a Settings to fix the key.")
+            elif "timed out" in lowered:
+                self._set_status("Request timed out \u2014 raise the timeout in Settings.")
+            else:
+                self._set_status("Error: %s" % error)
             return
 
         raw = payload.get("text", "")

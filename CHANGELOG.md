@@ -4,6 +4,13 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-09-22
+
+### Changed
+
+- Errors are shown with a warning marker and an actionable hint (auth → open
+  Settings, timeout → raise the timeout).
+
 ## [1.3.0] - 2026-09-22
 
 ### Added
