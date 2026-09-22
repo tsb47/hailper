@@ -114,13 +114,13 @@ menu, the toolbar, the **Extension** tab, the right-click menu, or the panel's
 own **Action** dropdown) appends a turn to the transcript, and you can keep
 chatting with the document in context. Use **New chat** to start over.
 
-Choose an action in the **Action** dropdown (Chat, Summarize, Rewrite,
-Translate, Proofread, Continue, Explain, plus any custom actions) and a
-**Persona** below it, or run an action from the menu / right-click menu. The
-**⋯ menu** in the conversation header holds the **model picker**, **starter
-prompts**, **saved conversations**, **New chat** and the **agent-mode** toggle.
-A **Scope** control chooses Selection or Document, a "Using: …" line shows what
-will be read, and a usage line shows tokens, cost and context-window use.
+The **Persona** dropdown sits beside the **Action** dropdown at the top (Persona
+first). The **⋯** button next to them opens a menu with the **model picker**,
+**starter prompts**, **saved conversations**, **New chat** and the **agent-mode**
+toggle. A **Scope** control chooses Selection or Document, and a "Using: …" line
+shows what will be read. A small, light-grey line at the very bottom shows the
+last token count, context-window use, cost and session total.
+
 Answers are rendered as Markdown in the transcript; **Insert formatted** applies
 that Markdown to the document as real Writer styles. After a change the status
 area offers **Undo** (formatted inserts undo in one step), and after an error it

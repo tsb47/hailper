@@ -293,6 +293,20 @@ class TestMarkdown(unittest.TestCase):
         self.assertIn("\u2022", out)
         self.assertNotIn("**", out)
 
+    def test_subheading_not_merged(self):
+        blocks = cp_markdown.parse("**Wild ancestor**\nThe red junglefowl lives.")
+        self.assertEqual(blocks[0]["type"], "subheading")
+        self.assertEqual(blocks[1]["type"], "paragraph")
+
+    def test_to_plain(self):
+        plain = cp_markdown.to_plain(
+            "# Title\n\n**Sub**\n\n- a **b**\n\n| X | Y |\n| --- | --- |\n| 1 | 2 |")
+        self.assertIn("Title", plain)
+        self.assertIn("\u2022 a b", plain)
+        self.assertIn("X", plain)
+        self.assertNotIn("**", plain)
+        self.assertNotIn("#", plain)
+
 
 class TestAgentHint(unittest.TestCase):
     def test_describe(self):

@@ -379,6 +379,18 @@ class DocumentContext(object):
                 text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
             state["first"] = False
 
+        # When appending at a cursor that is inside existing text, start on a
+        # fresh paragraph so the first block is not glued to it.
+        if mode != "replace":
+            try:
+                para = text.createTextCursorByRange(cursor.getStart())
+                para.gotoStartOfParagraph(False)
+                para.gotoEndOfParagraph(True)
+                if para.getString().strip():
+                    text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
+            except Exception:
+                pass
+
         with undo_context(self.doc, "HaiLPER formatted insert"):
             for block in blocks:
                 kind = block["type"]
@@ -389,6 +401,10 @@ class DocumentContext(object):
                             cursor, "Heading %d" % min(block["level"], 10)):
                         self._apply_range_prop(cursor, "CharWeight", 150.0)
                         self._apply_range_prop(cursor, "CharHeight", 14.0)
+                elif kind == "subheading":
+                    new_paragraph()
+                    self._insert_runs(cursor, block["text"])
+                    self._apply_range_prop(cursor, "CharWeight", 150.0)
                 elif kind == "paragraph":
                     new_paragraph()
                     self._insert_runs(cursor, block["text"])

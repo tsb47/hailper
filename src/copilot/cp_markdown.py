@@ -13,6 +13,7 @@ _RULE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
 _BULLET = re.compile(r"^(\s*)([-*+])\s+(.*)$")
 _ORDERED = re.compile(r"^(\s*)\d+[.)]\s+(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?[\s:\-|]+\|?\s*$")
+_EMPHASIS_LINE = re.compile(r"^\*\*.+\*\*$|^__.+__$|^\*.+\*$|^_.+_$")
 
 
 def _inline(text):
@@ -35,6 +36,8 @@ def _starts_block(line):
     if _HEADING.match(stripped) or _RULE.match(stripped):
         return True
     if _BULLET.match(stripped) or _ORDERED.match(stripped):
+        return True
+    if _EMPHASIS_LINE.match(stripped):
         return True
     return False
 
@@ -115,6 +118,10 @@ def parse(text):
                 index += 1
             blocks.append({"type": "ordered", "items": items})
             continue
+        if _EMPHASIS_LINE.match(stripped):
+            blocks.append({"type": "subheading", "text": stripped})
+            index += 1
+            continue
         para = [stripped]
         index += 1
         while (index < total and lines[index].strip()
@@ -150,6 +157,8 @@ def render_plain(blocks):
             label = _inline(block["text"])
             out.append(label)
             out.append("\u2500" * min(max(len(label), 3), 60))
+        elif kind == "subheading":
+            out.append("\u25b8 " + _inline(block["text"]))
         elif kind == "rule":
             out.append("\u2500" * 40)
         elif kind == "bullets":
@@ -177,3 +186,36 @@ def render_plain(blocks):
 
 def render(text):
     return render_plain(parse(text))
+
+
+def to_plain(text):
+    """Markdown -> clean plain text (no markers, no decorative rules)."""
+    lines = []
+    for block in parse(text):
+        kind = block["type"]
+        if kind in ("heading", "subheading"):
+            lines.append(_inline(block["text"]))
+        elif kind == "bullets":
+            for indent, item in block["items"]:
+                lines.append("  " * indent + "\u2022 " + _inline(item))
+        elif kind == "ordered":
+            counters = {}
+            for indent, item in block["items"]:
+                counters[indent] = counters.get(indent, 0) + 1
+                lines.append("  " * indent + "%d. " % counters[indent]
+                             + _inline(item))
+        elif kind == "code":
+            for line in block["text"].split("\n"):
+                lines.append("    " + line)
+        elif kind == "quote":
+            for line in block["text"].split("\n"):
+                lines.append("> " + _inline(line))
+        elif kind == "table":
+            for row in block["rows"]:
+                lines.append("   ".join(_inline(cell) for cell in row))
+        elif kind == "rule":
+            lines.append("\u2014" * 10)
+        else:
+            lines.append(_inline(block["text"]))
+        lines.append("")
+    return "\n".join(lines).strip()

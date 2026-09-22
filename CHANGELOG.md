@@ -4,6 +4,24 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] - 2026-09-22
+
+### Changed
+
+- **Compact panel**: the **Persona** and **Action** dropdowns now sit side by
+  side (Persona first, as the main selector); the separate labels and the
+  "Conversation:" header are gone. The token / context line is small, light grey
+  and pinned to the very bottom. The **⋯** button now opens a small menu (model
+  picker, starter prompts, history, new chat, agent mode) instead of a popup
+  menu that could fail to appear.
+
+### Fixed
+
+- **Insert / Insert formatted**: the first block no longer glues onto existing
+  text, and standalone `**bold**` subheading lines no longer merge into the
+  following paragraph. Plain Insert now inserts clean text with Markdown
+  markers removed.
+
 ## [1.3.2] - 2026-09-22
 
 ### Added

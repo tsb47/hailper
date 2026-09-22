@@ -26,6 +26,7 @@ import cp_document
 import cp_format
 import cp_history
 import cp_markdown
+import cp_menu
 import cp_personas
 import cp_prompts
 import cp_providers
@@ -243,20 +244,16 @@ class _Bridge(object):
             self.model.insertByName(
                 name, ui.create_model(self.model, service, name, **props))
 
-        add("com.sun.star.awt.UnoControlFixedText", "action_label",
-            PositionX=0, PositionY=0, Width=34, Height=LINE_H, Label="Action:")
-        action_choice = ui.create_model(
-            self.model, "com.sun.star.awt.UnoControlComboBox", "action_choice",
-            PositionX=0, PositionY=0, Width=content_w - 36, Height=LINE_H + 4,
-            Dropdown=True)
-        self.model.insertByName("action_choice", action_choice)
-        add("com.sun.star.awt.UnoControlFixedText", "persona_label",
-            PositionX=0, PositionY=0, Width=34, Height=LINE_H, Label="Persona:")
         persona_choice = ui.create_model(
             self.model, "com.sun.star.awt.UnoControlComboBox", "persona_choice",
-            PositionX=0, PositionY=0, Width=content_w - 36, Height=LINE_H + 4,
-            Dropdown=True)
+            PositionX=0, PositionY=0, Width=58, Height=LINE_H + 4,
+            Dropdown=True, HelpText="Persona")
         self.model.insertByName("persona_choice", persona_choice)
+        action_choice = ui.create_model(
+            self.model, "com.sun.star.awt.UnoControlComboBox", "action_choice",
+            PositionX=0, PositionY=0, Width=content_w - 78, Height=LINE_H + 4,
+            Dropdown=True, HelpText="Action")
+        self.model.insertByName("action_choice", action_choice)
         add("com.sun.star.awt.UnoControlEdit", "instruction",
             PositionX=0, PositionY=0, Width=content_w, Height=40,
             MultiLine=True, VScroll=True, HScroll=False)
@@ -289,8 +286,6 @@ class _Bridge(object):
             PositionX=0, PositionY=0, Width=content_w - 32,
             Height=LINE_H + 3, Dropdown=True)
         self.model.insertByName("model_choice", model_choice)
-        add("com.sun.star.awt.UnoControlFixedText", "result_label",
-            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="Result:")
         add("com.sun.star.awt.UnoControlButton", "menu_btn",
             PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
             ImageURL=_ICON_BASE % "menu-16.png",
@@ -310,7 +305,8 @@ class _Bridge(object):
             Label="Undo", FontHeight=7.0,
             HelpText="Undo the last change, or retry after an error")
         add("com.sun.star.awt.UnoControlFixedText", "usage_label",
-            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H, Label="")
+            PositionX=0, PositionY=0, Width=content_w, Height=LINE_H,
+            Label="", FontHeight=6.5, TextColor=0x9A9A9A)
         for slot in range(SLOTS):
             add("com.sun.star.awt.UnoControlButton", "btn_%d" % slot,
                 PositionX=0, PositionY=0, Width=1, Height=BTN_H, Label="")
@@ -423,9 +419,9 @@ class _Bridge(object):
         show_model = bool(getattr(self, "model_picker_visible", False))
         if controls_ready:
             self._ensure_scale()
-            for name in ("instruction", "generate", "result_label", "result",
-                         "status", "usage_label", "action_label",
-                         "action_choice", "persona_label", "persona_choice",
+            for name in ("instruction", "generate", "result",
+                         "status", "usage_label",
+                         "action_choice", "persona_choice",
                          "scope_label", "scope_choice", "using_label",
                          "menu_btn"):
                 try:
@@ -439,18 +435,16 @@ class _Bridge(object):
                     pass
             self._update_action_selector()
             self._update_persona_selector()
-            self._update_agent_button()
             self._update_usage_line()
             self._update_chips()
         content_w = DLG_W - 2 * PAD
         visible = getattr(self, "visible_choices", [])
         positions = {}
         y = PAD
-        positions["action_label"] = (PAD, y + 1, 34, LINE_H)
-        positions["action_choice"] = (PAD + 36, y, content_w - 36, LINE_H + 4)
-        y += LINE_H + 6
-        positions["persona_label"] = (PAD, y + 1, 34, LINE_H)
-        positions["persona_choice"] = (PAD + 36, y, content_w - 36, LINE_H + 4)
+        # One compact row: Persona (main) | Action | ⋯ menu.
+        positions["persona_choice"] = (PAD, y, 58, LINE_H + 4)
+        positions["action_choice"] = (PAD + 62, y, content_w - 80, LINE_H + 4)
+        positions["menu_btn"] = (PAD + content_w - 16, y, 16, LINE_H + 4)
         y += LINE_H + 6
         for index in range(2):
             if index < len(visible):
@@ -459,17 +453,12 @@ class _Bridge(object):
                     PAD + 50, y, content_w - 50, LINE_H + 3)
                 y += LINE_H + 5
 
-        # Conversation header: label + a single menu button.
-        positions["result_label"] = (PAD, y, content_w - 18, LINE_H)
-        positions["menu_btn"] = (PAD + content_w - 16, y - 2, 16, LINE_H + 4)
-        y += LINE_H + 2
         result_y = y
 
-        # Everything below the transcript (input, send, status, usage, buttons)
-        # plus the optional model row; the transcript gets everything else so the
-        # buttons can never be pushed off the bottom.
+        # Everything below the transcript: input, send, scope, status, buttons
+        # and the subtle usage line at the very bottom.
         below = (28 + (BTN_H + 4) + (LINE_H + 4) + (LINE_H + 4)
-                 + (LINE_H + 4) + (2 * BTN_H + 2) + PAD)
+                 + (2 * BTN_H + 2) + (LINE_H + 4) + PAD)
         if show_model:
             below += LINE_H + 4
         if getattr(self, "_chips_visible", False):
@@ -506,15 +495,15 @@ class _Bridge(object):
         positions["status"] = (PAD, y, content_w - 58, LINE_H)
         positions["feedback_btn"] = (PAD + content_w - 56, y - 1, 56, LINE_H + 3)
         y += LINE_H + 4
-        positions["usage_label"] = (PAD, y, content_w, LINE_H)
-        y += LINE_H + 4
         bw = (content_w - 2 * 4) // 3
         for slot in range(SLOTS):
             row = slot // 3
             col = slot % 3
             positions["btn_%d" % slot] = (
                 PAD + col * (bw + 4), y + row * (BTN_H + 2), bw, BTN_H)
-        total = y + 2 * BTN_H + 2 + PAD
+        y += 2 * BTN_H + 2
+        positions["usage_label"] = (PAD, y + 2, content_w, LINE_H)
+        total = y + 2 + LINE_H + PAD
 
         for name, rect in positions.items():
             self._place(name, *rect)
@@ -551,14 +540,13 @@ class _Bridge(object):
         content_w = DLG_W - 2 * PAD
         positions = {}
         y = PAD
-        positions["result_label"] = (PAD, y, content_w, LINE_H)
-        y += LINE_H + 2
         result_y = y
         # Keep flow panels compact so the action buttons are always visible.
         result_h = RESULT_MIN
         positions["result"] = (PAD, result_y, content_w, result_h)
         y = result_y + result_h + 4
-        positions["status"] = (PAD, y, content_w, LINE_H)
+        positions["status"] = (PAD, y, content_w - 58, LINE_H)
+        positions["feedback_btn"] = (PAD + content_w - 56, y - 1, 56, LINE_H + 3)
         y += LINE_H + 4
         bw = (content_w - 2 * 4) // 3
         for slot in range(SLOTS):
@@ -577,22 +565,17 @@ class _Bridge(object):
         if not controls_ready:
             return
         for name in ("instruction", "generate",
-                     "provider_label", "model_choice", "model_toggle",
+                     "provider_label", "model_choice",
                      "choice_label_0", "choice_0",
-                     "choice_label_1", "choice_1"):
+                     "choice_label_1", "choice_1",
+                     "action_choice", "persona_choice", "usage_label",
+                     "menu_btn", "scope_label", "scope_choice", "using_label",
+                     "chip_0", "chip_1", "chip_2"):
             try:
                 self.dialog.getControl(name).setVisible(False)
             except Exception:
                 pass
-        for name in ("action_label", "action_choice", "persona_label",
-                     "persona_choice", "usage_label", "menu_btn",
-                     "scope_label", "scope_choice", "using_label",
-                     "feedback_btn", "chip_0", "chip_1", "chip_2"):
-            try:
-                self.dialog.getControl(name).setVisible(False)
-            except Exception:
-                pass
-        for name in ("result_label", "result", "status"):
+        for name in ("result", "status", "feedback_btn"):
             try:
                 self.dialog.getControl(name).setVisible(True)
             except Exception:
@@ -641,7 +624,6 @@ class _Bridge(object):
                 self.config["persona"] = persona.get("id")
                 cp_config.save(self.config)
                 self.apply_meta()
-                self._set_status("Persona: %s" % name)
                 return
 
     def on_scope_changed(self):
@@ -700,37 +682,6 @@ class _Bridge(object):
         except Exception:
             pass
 
-    def on_starters(self):
-        import cp_ui as _ui
-        starters = cp_personas.starters(self.config)
-        if not starters:
-            self._set_status("No starter prompts for this persona.")
-            return
-        try:
-            menu = ui.smgr(self.ctx).createInstanceWithContext(
-                "com.sun.star.awt.PopupMenu", self.ctx)
-            for index, text in enumerate(starters):
-                menu.insertItem(index + 1, text[:60], 0, 0)
-            control = self.dialog.getControl("starters_btn")
-            pos = control.getPosSize()
-            parent = None
-            try:
-                parent = control.getPeer()
-            except Exception:
-                parent = None
-            if parent is None:
-                parent = self.dialog.getPeer()
-            chosen = menu.execute(parent, pos.X, pos.Y + pos.Height, 0)
-            if chosen and 1 <= chosen <= len(starters):
-                self._set_instruction_text(starters[chosen - 1], grey=False)
-                try:
-                    self.dialog.getControl("instruction").setFocus()
-                except Exception:
-                    pass
-        except Exception as error:
-            ui.log("starters failed: %r" % error)
-            self._set_instruction_text(starters[0], grey=False)
-
     def on_history(self):
         action, cid = cp_history.show(self.ctx, self.frame)
         if action == "new":
@@ -772,18 +723,8 @@ class _Bridge(object):
 
     def on_toggle_agent(self):
         self.agent_mode = not self.agent_mode
-        self._update_agent_button()
         self._set_status("Agent mode on \u2014 multi-step." if self.agent_mode
                          else "Agent mode off.")
-
-    def _update_agent_button(self):
-        try:
-            control = self.dialog.getControl("agent_toggle")
-            control.getModel().setPropertyValue(
-                "ImageURL", _ICON_BASE % ("agent-16-on.png" if self.agent_mode
-                                          else "agent-16.png"))
-        except Exception:
-            pass
 
     def _update_usage_line(self):
         show = (self.config.get("usage") or {}).get("show", True)
@@ -859,49 +800,23 @@ class _Bridge(object):
         return text
 
     def on_menu(self):
-        starters = cp_personas.starters(self.config)
-        try:
-            menu = ui.smgr(self.ctx).createInstanceWithContext(
-                "com.sun.star.awt.PopupMenu", self.ctx)
-            menu.insertItem(1, "Model picker", 0, 0)
-            menu.checkItem(1, bool(self.model_picker_visible))
-            menu.insertItem(2, "History\u2026", 0, 0)
-            menu.insertItem(3, "New chat", 0, 0)
-            menu.insertItem(4, "Agent mode", 0, 0)
-            menu.checkItem(4, bool(self.agent_mode))
-            if starters:
-                menu.insertSeparator(4)
-                for i, starter in enumerate(starters[:6]):
-                    menu.insertItem(100 + i, starter[:48], 0, 0)
-            control = self.dialog.getControl("menu_btn")
-            pos = control.getPosSize()
-            parent = None
-            try:
-                parent = control.getPeer()
-            except Exception:
-                parent = None
-            if parent is None:
-                parent = self.dialog.getPeer()
-            chosen = menu.execute(parent, pos.X, pos.Y + pos.Height, 0)
-        except Exception as error:
-            ui.log("menu failed: %r" % error)
-            return
-        if chosen == 1:
+        action, payload = cp_menu.show(
+            self.ctx, self.frame, self.config,
+            self.model_picker_visible, self.agent_mode)
+        if action == "model":
             self.on_toggle_model()
-        elif chosen == 2:
+        elif action == "starter" and payload:
+            self._set_instruction_text(payload, grey=False)
+            try:
+                self.dialog.getControl("instruction").setFocus()
+            except Exception:
+                pass
+        elif action == "history":
             self.on_history()
-        elif chosen == 3:
+        elif action == "newchat":
             self.on_clear()
-        elif chosen == 4:
+        elif action == "agent":
             self.on_toggle_agent()
-        elif chosen >= 100:
-            index = chosen - 100
-            if 0 <= index < len(starters):
-                self._set_instruction_text(starters[index], grey=False)
-                try:
-                    self.dialog.getControl("instruction").setFocus()
-                except Exception:
-                    pass
 
     def on_toggle_model(self):
         self.model_picker_visible = not self.model_picker_visible
@@ -975,10 +890,8 @@ class _Bridge(object):
 
     def apply_meta(self):
         is_chat = self.action == "chat"
-        ui.set_text(self.dialog, "result_label", "Conversation:")
         self._update_action_selector()
         self._update_persona_selector()
-        self._update_agent_button()
         self._update_usage_line()
         self._update_using_label()
         display = self.meta.get("display_instruction",
@@ -1622,10 +1535,11 @@ class _Bridge(object):
         self._set_feedback("undo")
 
     def _apply_to_document(self, mode):
-        text = self._result_for_apply().strip()
-        if not text:
+        raw = self._result_for_apply().strip()
+        if not raw:
             self._set_status("Nothing to use yet.")
             return
+        text = cp_markdown.to_plain(raw) or raw
         doc_ctx = self._current_doc_ctx()
         if doc_ctx is None:
             self._set_status("No document is open.")
@@ -1706,10 +1620,9 @@ class _Bridge(object):
         )
         self.result_text = text
         ui.set_text(self.dialog, "result", text)
-        ui.set_text(self.dialog, "result_label",
-                    "Review (%d of %d)" % (self.review_index + 1, total))
-        self._set_status("Fixed %d, ignored %d"
-                         % (self.review_fixed, self.review_ignored))
+        self._set_status("Review %d of %d \u00b7 fixed %d, ignored %d"
+                         % (self.review_index + 1, total,
+                            self.review_fixed, self.review_ignored))
         try:
             self.dialog.getControl("btn_2").setEnable(self.review_index > 0)
         except Exception:
@@ -1825,8 +1738,7 @@ class _Bridge(object):
         text = "\n\n".join(parts)
         self.result_text = text
         ui.set_text(self.dialog, "result", text)
-        ui.set_text(self.dialog, "result_label", "Review draft")
-        self._set_status("Adopt this, reject it, or refine it.")
+        self._set_status("Draft \u00b7 adopt, reject or refine it.")
 
     def _proposal_action(self, key):
         if key == "adopt":
