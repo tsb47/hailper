@@ -5,6 +5,7 @@ import unohelper
 
 from com.sun.star.awt import XActionListener
 from com.sun.star.awt import XCallback
+from com.sun.star.awt import XFocusListener
 from com.sun.star.awt import XItemListener
 from com.sun.star.datatransfer import DataFlavor
 from com.sun.star.datatransfer import XTransferable
@@ -149,6 +150,23 @@ class Callback(unohelper.Base, XCallback):
 
     def notify(self, data):
         self._callback(data)
+
+
+class FocusListener(unohelper.Base, XFocusListener):
+    def __init__(self, gained=None, lost=None):
+        self._gained = gained
+        self._lost = lost
+
+    def focusGained(self, event):
+        if callable(self._gained):
+            self._gained()
+
+    def focusLost(self, event):
+        if callable(self._lost):
+            self._lost()
+
+    def disposing(self, event):
+        pass
 
 
 class ItemListener(unohelper.Base, XItemListener):

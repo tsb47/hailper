@@ -4,6 +4,29 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-09-22
+
+### Added
+
+- **Markdown rendering** in the transcript (headings, bullets, ordered lists,
+  aligned tables, code fences, quotes) and **Insert formatted**, which applies
+  the same Markdown to the document as real Writer formatting (Heading styles,
+  lists, bold/italic, monospace, tables). Insert formatted is the default
+  primary action for Chat and Summarize.
+- **Contextual UX**: labelled Action/Persona dropdowns, per-action instruction
+  placeholders, an explicit **Scope (Selection/Document)** control with a
+  "Using: …" indicator, and clickable **starter chips** under the transcript on
+  the empty state.
+- The header switches (model, starters, history, agent) are collapsed into a
+  single **⋯ menu** with New chat.
+
+### Fixed
+
+- Tool-directive JSON (and stray `{…}` fragments) no longer leak into the
+  transcript.
+- Clearer usage line: `last N tok (in A / out B) · ctx · cost — session N tok`,
+  with a provider · model caption.
+
 ## [1.2.1] - 2026-09-22
 
 ### Fixed

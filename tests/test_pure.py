@@ -14,6 +14,7 @@ import cp_agents  # noqa: E402
 import cp_config  # noqa: E402
 import cp_context  # noqa: E402
 import cp_format  # noqa: E402
+import cp_markdown  # noqa: E402
 import cp_personas  # noqa: E402
 import cp_prompts  # noqa: E402
 import cp_providers  # noqa: E402
@@ -52,6 +53,24 @@ class TestDirectives(unittest.TestCase):
 
     def test_none(self):
         self.assertIsNone(cp_prompts.parse_directive("just some prose"))
+
+    def test_strip_directives(self):
+        clean = cp_prompts.strip_directives(
+            'Here you go {"format": [{"bold": true}]} done')
+        self.assertIn("Here you go", clean)
+        self.assertNotIn("format", clean)
+        self.assertEqual(
+            cp_prompts.strip_directives('{"edit": {"action": "insert", "text": "x"}}'),
+            "")
+
+    def test_strip_keeps_plain_json(self):
+        text = 'Use {"a": 1} here'
+        self.assertEqual(cp_prompts.strip_directives(text), text)
+
+    def test_strip_trailing_fragment(self):
+        out = cp_prompts.strip_directives('Text here {"edit": {"text": "hi"}})}')
+        self.assertIn("Text here", out)
+        self.assertNotIn("edit", out)
 
 
 class TestSuggestions(unittest.TestCase):
@@ -240,6 +259,39 @@ class TestCustomActions(unittest.TestCase):
         meta = cp_actions.as_meta(cp_actions.normalize({"title": "T"}))
         self.assertIn("primary", meta)
         self.assertTrue(meta["custom"])
+
+
+class TestMarkdown(unittest.TestCase):
+    def test_heading(self):
+        blocks = cp_markdown.parse("# Title\n\nBody text")
+        self.assertEqual(blocks[0]["type"], "heading")
+        self.assertEqual(blocks[0]["level"], 1)
+        self.assertEqual(blocks[1]["type"], "paragraph")
+
+    def test_bullets(self):
+        blocks = cp_markdown.parse("- one\n- two")
+        self.assertEqual(blocks[0]["type"], "bullets")
+        self.assertEqual(len(blocks[0]["items"]), 2)
+
+    def test_ordered(self):
+        blocks = cp_markdown.parse("1. first\n2. second")
+        self.assertEqual(blocks[0]["type"], "ordered")
+
+    def test_table(self):
+        blocks = cp_markdown.parse("| A | B |\n| --- | --- |\n| 1 | 2 |")
+        self.assertEqual(blocks[0]["type"], "table")
+        self.assertEqual(blocks[0]["rows"][0], ["A", "B"])
+
+    def test_code_fence(self):
+        blocks = cp_markdown.parse("```\nx = 1\n```")
+        self.assertEqual(blocks[0]["type"], "code")
+
+    def test_render_plain(self):
+        out = cp_markdown.render("# Title\n- item **bold**")
+        self.assertIn("Title", out)
+        self.assertIn("\u2500", out)
+        self.assertIn("\u2022", out)
+        self.assertNotIn("**", out)
 
 
 class TestAgentHint(unittest.TestCase):

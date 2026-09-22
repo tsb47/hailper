@@ -90,11 +90,14 @@ def format_line(provider_id, model, usage, session, context_window=None,
                 config=None):
     """Build the compact usage line shown under the status."""
     usage = usage or {}
-    total = (usage.get("input", 0) or 0) + (usage.get("output", 0) or 0)
+    inp = usage.get("input", 0) or 0
+    out = usage.get("output", 0) or 0
+    total = inp + out
     session = session or {}
     session_total = (session.get("tokens", 0) or 0)
     session_cost = session.get("cost", 0.0) or 0.0
-    parts = ["%s tok" % _group(total)]
+    parts = ["last %s tok (in %s / out %s)"
+             % (_group(total), _group(inp), _group(out))]
     if context_window:
         parts.append("%s / %s ctx" % (_group(total), _group(context_window)))
     if is_local(provider_id):

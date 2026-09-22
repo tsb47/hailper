@@ -117,9 +117,12 @@ chatting with the document in context. Use **New chat** to start over.
 Choose an action in the **Action** dropdown (Chat, Summarize, Rewrite,
 Translate, Proofread, Continue, Explain, plus any custom actions) and a
 **Persona** below it, or run an action from the menu / right-click menu. The
-header buttons are the **model picker** (gear), **starter prompts**, **saved
-conversations** and the **agent-mode** toggle. A usage line under the input
-shows tokens, estimated cost and context-window use.
+**⋯ menu** in the conversation header holds the **model picker**, **starter
+prompts**, **saved conversations**, **New chat** and the **agent-mode** toggle.
+A **Scope** control chooses Selection or Document, a "Using: …" line shows what
+will be read, and a usage line shows tokens, cost and context-window use.
+Answers are rendered as Markdown in the transcript; **Insert formatted** applies
+that Markdown to the document as real Writer styles.
 
 The transcript scrolls on its own and auto-scrolls to the newest message, and
 `You` / `HaiLPER` turns are labelled and separated.

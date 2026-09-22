@@ -1,6 +1,7 @@
 """Prompt templates and per-action metadata."""
 
 import json
+import re
 
 REWRITE_STYLES = [
     "clearer and more concise",
@@ -68,8 +69,9 @@ ACTIONS = {
         "prompt_label": "Message:",
         "result_label": "Conversation:",
         "auto_run": False,
-        "primary": ("insert", "Insert reply"),
+        "primary": ("insert_formatted", "Insert formatted"),
         "buttons": [
+            ("insert", "Insert"),
             ("copy", "Copy"),
             ("comment", "Comment"),
             ("clear", "New chat"),
@@ -83,13 +85,13 @@ ACTIONS = {
         "prompt_label": "Instruction:",
         "result_label": "Summary:",
         "auto_run": True,
-        "primary": ("newdoc", "New document"),
+        "primary": ("insert_formatted", "Insert formatted"),
         "buttons": [
+            ("newdoc", "New document"),
             ("insert", "Insert"),
             ("append", "Append"),
             ("comment", "Comment"),
             ("copy", "Copy"),
-            ("close", "Close"),
         ],
         "choices": [
             {"key": "format", "label": "Format", "values": SUMMARIZE_FORMATS,
@@ -285,6 +287,66 @@ def parse_directive(text):
             if ops:
                 return ("format", ops)
     return None
+
+
+_DIRECTIVE_KEYS = ('"edit"', '"format"', '"request"')
+
+
+def _looks_like_directive(fragment):
+    return any(key in fragment for key in _DIRECTIVE_KEYS)
+
+
+def strip_directives(text):
+    """Remove tool-directive JSON (and stray fragments) from display text."""
+    if not text:
+        return ""
+    out = []
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if char != "{":
+            out.append(char)
+            index += 1
+            continue
+        depth = 0
+        cursor = index
+        in_string = False
+        escaped = False
+        closed = -1
+        while cursor < length:
+            current = text[cursor]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif current == "\\":
+                    escaped = True
+                elif current == '"':
+                    in_string = False
+            elif current == '"':
+                in_string = True
+            elif current == "{":
+                depth += 1
+            elif current == "}":
+                depth -= 1
+                if depth == 0:
+                    closed = cursor
+                    break
+            cursor += 1
+        if closed == -1:
+            # Unbalanced from here: drop the trailing fragment.
+            index = length
+            break
+        fragment = text[index:closed + 1]
+        if _looks_like_directive(fragment):
+            index = closed + 1
+            continue
+        out.append(fragment)
+        index = closed + 1
+    result = "".join(out)
+    # Tidy any leftover lone braces/parens left on a line.
+    result = re.sub(r"[ \t]*[\{\}]+[\)\]]?[ \t]*$", "", result, flags=re.MULTILINE)
+    return result.strip()
 
 
 def _truncate(text):

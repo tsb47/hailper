@@ -347,6 +347,155 @@ class DocumentContext(object):
             return self._impress_write(value, overwrite=False)
         return False
 
+    # ------------------------------------------------------- formatted insert
+    def insert_markdown(self, markdown_text, mode="insert"):
+        """Render Markdown into the document with real Writer formatting."""
+        if self.kind != WRITER:
+            return False
+        import cp_markdown
+        blocks = cp_markdown.parse(markdown_text)
+        text = self.doc.getText()
+        cursor = self._markdown_cursor(text, mode == "replace")
+        if cursor is None:
+            return False
+        state = {"first": True}
+
+        def new_paragraph():
+            if not state["first"]:
+                text.insertControlCharacter(cursor, PARAGRAPH_BREAK, False)
+            state["first"] = False
+
+        for block in blocks:
+            kind = block["type"]
+            if kind == "heading":
+                new_paragraph()
+                self._insert_runs(cursor, block["text"])
+                if not self._try_para_style(
+                        cursor, "Heading %d" % min(block["level"], 10)):
+                    self._apply_range_prop(cursor, "CharWeight", 150.0)
+                    self._apply_range_prop(cursor, "CharHeight", 14.0)
+            elif kind == "paragraph":
+                new_paragraph()
+                self._insert_runs(cursor, block["text"])
+            elif kind in ("bullets", "ordered"):
+                counters = {}
+                for indent, item in block["items"]:
+                    new_paragraph()
+                    if kind == "bullets":
+                        prefix = "    " * indent + "\u2022 "
+                    else:
+                        counters[indent] = counters.get(indent, 0) + 1
+                        prefix = "    " * indent + "%d. " % counters[indent]
+                    text.insertString(cursor, prefix, False)
+                    self._insert_runs(cursor, item)
+            elif kind == "code":
+                for line in block["text"].split("\n"):
+                    new_paragraph()
+                    self._insert_runs(cursor, line)
+                    self._apply_range_prop(cursor, "CharFontName", "Liberation Mono")
+            elif kind == "quote":
+                for line in block["text"].split("\n"):
+                    new_paragraph()
+                    self._insert_runs(cursor, line)
+                    self._apply_range_prop(cursor, "CharPosture", 2)
+            elif kind == "rule":
+                new_paragraph()
+                text.insertString(cursor, "\u2500" * 40, False)
+            elif kind == "table":
+                new_paragraph()
+                cursor = self._insert_markdown_table(text, cursor, block["rows"])
+        return True
+
+    def _markdown_cursor(self, text, replace):
+        if replace and self.has_selection() and self.selection is not None:
+            cursor = text.createTextCursorByRange(self.selection)
+            try:
+                cursor.setString("")
+            except Exception:
+                pass
+            return cursor
+        view = self.writer_view_cursor()
+        if view is None:
+            return None
+        return text.createTextCursorByRange(view)
+
+    _INLINE = None
+
+    def _insert_runs(self, cursor, value):
+        import re
+        import cp_markdown
+        if self._INLINE is None:
+            self._INLINE = re.compile(
+                r"(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)")
+        text = cursor.getText()
+        position = 0
+        for match in self._INLINE.finditer(value):
+            if match.start() > position:
+                text.insertString(cursor, cp_markdown._inline(
+                    value[position:match.start()]), False)
+            token = match.group(0)
+            if token.startswith("**") or token.startswith("__"):
+                self._insert_run(cursor, token[2:-2], {"CharWeight": 150.0})
+            elif token.startswith("`"):
+                self._insert_run(cursor, token[1:-1],
+                                 {"CharFontName": "Liberation Mono"})
+            else:
+                self._insert_run(cursor, token[1:-1], {"CharPosture": 2})
+            position = match.end()
+        if position < len(value):
+            text.insertString(cursor, cp_markdown._inline(value[position:]), False)
+
+    def _insert_run(self, cursor, value, props):
+        text = cursor.getText()
+        start = cursor.getStart()
+        text.insertString(cursor, value, False)
+        for prop, val in props.items():
+            try:
+                rng = text.createTextCursorByRange(start)
+                rng.gotoRange(cursor.getEnd(), True)
+                rng.setPropertyValue(prop, val)
+            except Exception:
+                pass
+
+    def _apply_range_prop(self, cursor, prop, value):
+        try:
+            para = cursor.getText().createTextCursorByRange(cursor.getStart())
+            para.gotoStartOfParagraph(False)
+            para.gotoEndOfParagraph(True)
+            para.setPropertyValue(prop, value)
+        except Exception:
+            pass
+
+    def _try_para_style(self, cursor, style):
+        try:
+            names = self.doc.getStyleFamilies().getByName(
+                "ParagraphStyles").getElementNames()
+            if style not in names:
+                return False
+            self._apply_range_prop(cursor, "ParaStyleName", style)
+            return True
+        except Exception:
+            return False
+
+    def _insert_markdown_table(self, text, cursor, rows):
+        if not rows:
+            return cursor
+        cols = max(len(row) for row in rows)
+        table = self.doc.createInstance("com.sun.star.text.TextTable")
+        table.initialize(len(rows), cols)
+        text.insertTextContent(cursor, table, False)
+        for row_index, row in enumerate(rows):
+            for col in range(cols):
+                value = row[col] if col < len(row) else ""
+                try:
+                    table.getCellByPosition(col, row_index).setString(value)
+                except Exception:
+                    pass
+        try:
+            return text.createTextCursorByRange(table.getEnd())
+        except Exception:
+            return cursor
+
     def append(self, value):
         if self.kind == WRITER:
             try:
