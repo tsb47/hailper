@@ -5,9 +5,6 @@ each provider's format by cp_providers.  ``execute`` runs a tool call against
 the active document (on the main thread).
 """
 
-import cp_document
-import cp_format
-
 TOOLS = [
     {
         "name": "read_document",
@@ -113,6 +110,8 @@ def tools_for(config):
 
 def execute(doc_ctx, name, arguments, config=None):
     """Run a tool call; returns a short string result for the model."""
+    import cp_document
+    import cp_format
     arguments = arguments or {}
     try:
         if name == "web_search":

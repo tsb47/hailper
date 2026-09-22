@@ -4,6 +4,13 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-09-22
+
+### Fixed
+
+- `cp_tools` no longer imports the UNO document layer at module load, so the
+  unit tests (and any non-LibreOffice import) work without UNO installed.
+
 ## [1.4.0] - 2026-09-22
 
 ### Added
