@@ -358,6 +358,16 @@ class TestWebParsing(unittest.TestCase):
         with self.assertRaises(cp_web.WebError):
             cp_web.fetch("file:///etc/passwd")
 
+    def test_parse_ddg_lite(self):
+        page = ('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com" '
+                "class='result-link'>Example</a>"
+                "<td class='result-snippet'>A snippet</td>")
+        results = cp_web._parse_ddg_lite(page)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["url"], "https://example.com")
+        self.assertEqual(results[0]["title"], "Example")
+        self.assertEqual(results[0]["snippet"], "A snippet")
+
 
 class TestAgentHint(unittest.TestCase):
     def test_describe(self):

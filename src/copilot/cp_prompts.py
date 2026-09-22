@@ -231,6 +231,15 @@ ACTIONS = {
 
 MAX_INPUT_CHARS = 16000
 
+WEB_HINT = (
+    "You have live internet access through tools. For anything current, "
+    "real-time or factual that you are unsure about (weather, news, prices, "
+    "dates, versions, people, places) call web_search first, then fetch_url to "
+    "read a promising result when you need detail, and answer using what you "
+    "find with the source URLs. Never say you cannot access the internet or "
+    "lack live data \u2014 search the web instead."
+)
+
 DOCUMENT_REQUEST_HINT = (
     "If you need the contents of the user's document to answer, reply with "
     "exactly this JSON and nothing else: {\"request\": \"document\"}. "

@@ -60,32 +60,55 @@ def _ddg_url(href):
     return href
 
 
-def _search_duckduckgo(query, timeout):
-    url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
-    page = _get(url, timeout)
+def _parse_ddg_lite(page):
+    links = []
+    for match in re.finditer(
+            r'<a[^>]*href="([^"]+)"[^>]*class=[\'"]result-link[\'"][^>]*>(.*?)</a>',
+            page, re.DOTALL):
+        links.append((_ddg_url(html.unescape(match.group(1))),
+                      _strip_html(match.group(2))))
+    snippets = [_strip_html(match.group(1)) for match in re.finditer(
+        r'class=[\'"]result-snippet[\'"][^>]*>(.*?)</td>', page, re.DOTALL)]
     results = []
-    pattern = re.compile(
-        r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
-        r'.*?<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
-        re.DOTALL)
-    for match in pattern.finditer(page):
-        title = _strip_html(match.group(2))
-        snippet = _strip_html(match.group(3))
-        link = _ddg_url(html.unescape(match.group(1)))
+    for index, (link, title) in enumerate(links):
         if title and link:
-            results.append({"title": title, "url": link, "snippet": snippet})
+            results.append({
+                "title": title, "url": link,
+                "snippet": snippets[index] if index < len(snippets) else ""})
         if len(results) >= 5:
             break
+    return results
+
+
+def _parse_ddg_html(page):
+    results = []
+    for match in re.finditer(
+            r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+            page, re.DOTALL):
+        title = _strip_html(match.group(2))
+        link = _ddg_url(html.unescape(match.group(1)))
+        if title and link:
+            results.append({"title": title, "url": link, "snippet": ""})
+        if len(results) >= 5:
+            break
+    return results
+
+
+def _search_duckduckgo(query, timeout):
+    results = []
+    try:
+        page = _get("https://lite.duckduckgo.com/lite/?q="
+                    + urllib.parse.quote(query), timeout)
+        results = _parse_ddg_lite(page)
+    except WebError:
+        results = []
     if not results:
-        # Fallback: at least collect result links.
-        for match in re.finditer(
-                r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
-                page, re.DOTALL):
-            results.append({"title": _strip_html(match.group(2)),
-                            "url": _ddg_url(html.unescape(match.group(1))),
-                            "snippet": ""})
-            if len(results) >= 5:
-                break
+        try:
+            page = _get("https://html.duckduckgo.com/html/?q="
+                        + urllib.parse.quote(query), timeout)
+            results = _parse_ddg_html(page)
+        except WebError:
+            results = []
     return results
 
 

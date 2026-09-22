@@ -4,6 +4,22 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.2] - 2026-09-23
+
+### Fixed
+
+- **Web search returns real, current results.** The old DuckDuckGo HTML
+  endpoint is bot-blocked (HTTP 202), so searches fell back to generic
+  Wikipedia pages. It now uses **DuckDuckGo Lite**, with the HTML endpoint and
+  Wikipedia as fallbacks.
+
+### Changed
+
+- When web tools are available the model is told it has **live internet
+  access** and today's date, and is instructed to search rather than claim it
+  cannot. The chat tool loop allows an extra step so it can search, open a
+  result and then answer.
+
 ## [1.4.1] - 2026-09-22
 
 ### Fixed

@@ -1140,6 +1140,9 @@ class _Bridge(object):
 
     def _with_hints(self, system, include_directives=True):
         hints = []
+        if getattr(self, "use_tools", False) and self.config.get("allow_web", True):
+            hints.append(cp_prompts.WEB_HINT)
+            hints.append("Today's date is %s." % time.strftime("%Y-%m-%d"))
         if include_directives and self.config.get("allow_edits"):
             hints.append(cp_prompts.EDIT_HINT)
         if (include_directives and self.config.get("allow_document_access")
@@ -1177,7 +1180,7 @@ class _Bridge(object):
                 if getattr(self, "use_tools", False) else []
         if steps is None:
             steps = int((self.config.get("agents") or {}).get("max_steps", 6)) \
-                if self.agent_mode else 3
+                if self.agent_mode else 4
         self.tool_active = bool(tools)
         self.tool_tools = tools
         self.tool_messages = list(messages)
