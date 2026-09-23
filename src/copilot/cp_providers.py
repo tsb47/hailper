@@ -6,12 +6,22 @@ interpreter LibreOffice ships, without requiring pip packages.
 
 import json
 import socket
+import time
 import urllib.error
 import urllib.request
+
+_RETRY_CODES = (429, 500, 502, 503, 504)
+_RETRY_ATTEMPTS = 3
 
 
 class ProviderError(Exception):
     """Raised for any recoverable problem talking to a provider."""
+
+
+def _retryable(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in _RETRY_CODES
+    return isinstance(error, (urllib.error.URLError, socket.timeout))
 
 
 # protocol is one of: "openai", "anthropic", "gemini", "ollama"
@@ -469,20 +479,41 @@ def provider_spec(provider_id):
 
 def _http_post_json(url, payload, headers, timeout):
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, method="POST")
-    request.add_header("Content-Type", "application/json")
-    for key, value in headers.items():
-        request.add_header(key, value)
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read().decode("utf-8", "replace")
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", "replace")
-        raise ProviderError(_friendly_http_error(error.code, detail))
-    except urllib.error.URLError as error:
-        raise ProviderError("Could not reach the server: %s" % error.reason)
-    except socket.timeout:
-        raise ProviderError("The request timed out.")
+    delay = 1.0
+    last_error = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        request = urllib.request.Request(url, data=body, method="POST")
+        request.add_header("Content-Type", "application/json")
+        for key, value in headers.items():
+            request.add_header(key, value)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read().decode("utf-8", "replace")
+            break
+        except urllib.error.HTTPError as error:
+            if _retryable(error) and attempt < _RETRY_ATTEMPTS - 1:
+                last_error = error
+                time.sleep(delay)
+                delay *= 2
+                continue
+            detail = error.read().decode("utf-8", "replace")
+            raise ProviderError(_friendly_http_error(error.code, detail))
+        except urllib.error.URLError as error:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                last_error = error
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise ProviderError("Could not reach the server: %s" % error.reason)
+        except socket.timeout:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                last_error = "timeout"
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise ProviderError("The request timed out.")
+    else:
+        raise ProviderError("The request failed after retries: %s" % last_error)
     try:
         return json.loads(raw)
     except ValueError:
@@ -943,20 +974,35 @@ def tool_result_messages(provider_id, raw_message, results):
 
 def _open_stream(url, payload, headers, timeout):
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, method="POST")
-    request.add_header("Content-Type", "application/json")
-    request.add_header("Accept", "text/event-stream")
-    for key, value in headers.items():
-        request.add_header(key, value)
-    try:
-        return urllib.request.urlopen(request, timeout=timeout)
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", "replace")
-        raise ProviderError(_friendly_http_error(error.code, detail))
-    except urllib.error.URLError as error:
-        raise ProviderError("Could not reach the server: %s" % error.reason)
-    except socket.timeout:
-        raise ProviderError("The request timed out.")
+    delay = 1.0
+    for attempt in range(_RETRY_ATTEMPTS):
+        request = urllib.request.Request(url, data=body, method="POST")
+        request.add_header("Content-Type", "application/json")
+        request.add_header("Accept", "text/event-stream")
+        for key, value in headers.items():
+            request.add_header(key, value)
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            if _retryable(error) and attempt < _RETRY_ATTEMPTS - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            detail = error.read().decode("utf-8", "replace")
+            raise ProviderError(_friendly_http_error(error.code, detail))
+        except urllib.error.URLError as error:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise ProviderError("Could not reach the server: %s" % error.reason)
+        except socket.timeout:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise ProviderError("The request timed out.")
+    raise ProviderError("Could not connect after retries.")
 
 
 def _sse_objects(response):

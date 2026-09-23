@@ -4,6 +4,13 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.4] - 2026-09-23
+
+### Changed
+
+- Providers now retry transient failures (HTTP 429/5xx and network errors) up
+  to 3 times with exponential backoff, for both normal and streaming requests.
+
 ## [1.4.3] - 2026-09-23
 
 ### Security
