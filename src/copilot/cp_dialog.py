@@ -167,6 +167,7 @@ class _Bridge(object):
         self.starter_chips = []
         self._chips_visible = False
         self.feedback_mode = None
+        self.last_error = None
         self.use_tools = False
         self.tool_active = False
         self.tool_tools = []
@@ -788,6 +789,17 @@ class _Bridge(object):
             self.on_clear()
         elif action == "agent":
             self.on_toggle_agent()
+        elif action == "diagnostics":
+            self._copy_diagnostics()
+
+    def _copy_diagnostics(self):
+        import cp_diagnostics
+        report = cp_diagnostics.build(self.config,
+                                      getattr(self, "last_error", None))
+        if ui.copy_to_clipboard(self.ctx, report):
+            self._set_status("Diagnostics copied (secrets redacted).")
+        else:
+            self._set_status("Could not copy diagnostics.")
 
     def on_toggle_model(self):
         self.model_picker_visible = not self.model_picker_visible
@@ -1140,6 +1152,8 @@ class _Bridge(object):
 
     def _with_hints(self, system, include_directives=True):
         hints = []
+        if getattr(self, "use_tools", False):
+            hints.append(cp_prompts.TOOL_SAFETY_HINT)
         if getattr(self, "use_tools", False) and self.config.get("allow_web", True):
             hints.append(cp_prompts.WEB_HINT)
             hints.append("Today's date is %s." % time.strftime("%Y-%m-%d"))
@@ -1401,6 +1415,7 @@ class _Bridge(object):
         self._set_busy(False)
         if not payload.get("ok"):
             error = payload.get("error", "unknown error")
+            self.last_error = str(error)
             self.add_history_line("HaiLPER", "\u26a0\ufe0f %s" % error)
             lowered = str(error).lower()
             if any(token in lowered for token in

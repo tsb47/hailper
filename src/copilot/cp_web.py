@@ -6,6 +6,7 @@ Wikipedia API.  Optional backends (SearXNG, Tavily) can be configured in
 """
 
 import html
+import ipaddress
 import json
 import re
 import socket
@@ -23,14 +24,63 @@ class WebError(Exception):
     pass
 
 
+def _ip_is_public(ip):
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return not (address.is_private or address.is_loopback
+                or address.is_link_local or address.is_reserved
+                or address.is_multicast or address.is_unspecified)
+
+
+def _host_is_public(host):
+    if not host:
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    if not infos:
+        return False
+    return all(_ip_is_public(info[4][0]) for info in infos)
+
+
+def url_allowed(url):
+    """Only public http(s) URLs are allowed (SSRF protection)."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if parsed.username or parsed.password:
+        return False
+    return _host_is_public(parsed.hostname)
+
+
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not url_allowed(newurl):
+            raise WebError("Blocked a redirect to a non-public address.")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_SafeRedirect())
+
+
 def _get(url, timeout=DEFAULT_TIMEOUT, headers=None):
+    if not url_allowed(url):
+        raise WebError("Refusing to fetch a non-public address.")
     request = urllib.request.Request(url, headers={
         "User-Agent": USER_AGENT, "Accept": "*/*"})
     for key, value in (headers or {}).items():
         request.add_header(key, value)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _OPENER.open(request, timeout=timeout) as response:
             data = response.read(MAX_BYTES)
+    except WebError:
+        raise
     except urllib.error.HTTPError as error:
         raise WebError("HTTP %s from %s" % (error.code, url))
     except urllib.error.URLError as error:
@@ -168,9 +218,8 @@ def search(query, config=None, timeout=DEFAULT_TIMEOUT):
 
 def fetch(url, max_chars=4000, timeout=DEFAULT_TIMEOUT):
     """Fetch a URL and return readable plain text."""
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise WebError("Only http/https URLs are allowed.")
+    if not url_allowed(url):
+        raise WebError("Only public http/https URLs are allowed.")
     page = _get(url, timeout)
     text = _strip_html(page)
     return text[:max_chars] if text else "(no readable text)"

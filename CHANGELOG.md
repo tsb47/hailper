@@ -4,6 +4,19 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.3] - 2026-09-23
+
+### Security
+
+- **SSRF protection** for web tools: `fetch_url`/`web_search` only fetch public
+  http(s) URLs; loopback, private, link-local, reserved and credential-bearing
+  URLs are refused, and redirects to them are blocked.
+- **Prompt-injection boundary**: tool and web results are wrapped as
+  `<<<UNTRUSTED … >>>` data, and the model is told never to follow instructions
+  found in document or web content.
+- **Copy diagnostics** (⋯ menu) produces a support report with API keys/tokens
+  redacted. No telemetry is ever sent.
+
 ## [1.4.2] - 2026-09-23
 
 ### Fixed
