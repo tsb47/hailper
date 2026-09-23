@@ -1220,17 +1220,51 @@ class _Bridge(object):
         ).start()
 
     def _run_tools(self, calls, raw_message_json):
+        # Network tools run off the UI thread so the panel stays responsive.
+        network_only = bool(calls) and all(
+            call.get("name") in ("web_search", "fetch_url") for call in calls)
+        if network_only:
+            self._set_status("Searching the web\u2026")
+            self._set_busy(True)
+            threading.Thread(
+                target=self._run_web_tools,
+                args=(calls, raw_message_json, self.gen_id), daemon=True).start()
+            return
         doc_ctx = self._current_doc_ctx()
         results = []
         for call in calls:
             name = call.get("name")
-            arguments = call.get("arguments")
-            content = cp_tools.execute(doc_ctx, name, arguments, self.config)
+            content = cp_tools.execute(doc_ctx, name, call.get("arguments"),
+                                       self.config)
             results.append({"id": call.get("id") or name, "name": name,
                             "content": content})
+        self._continue_tools(results, raw_message_json)
+
+    def _run_web_tools(self, calls, raw_message_json, gen_id):
+        results = []
+        for call in calls:
+            name = call.get("name")
+            try:
+                content = cp_tools.execute(None, name, call.get("arguments"),
+                                           self.config)
+            except Exception as error:  # noqa: BLE001
+                ui.log("web tool %s failed: %r" % (name, error))
+                content = "Error: %s" % error
+            results.append({"id": call.get("id") or name, "name": name,
+                            "content": content})
+        try:
+            self.async_callback.addCallback(
+                self.callback_object,
+                ui.payload(tool_results=json.dumps(results),
+                           raw_message=raw_message_json or "", gen=gen_id))
+        except Exception:
+            pass
+
+    def _continue_tools(self, results, raw_message_json):
+        for item in results:
             self.add_history_line(
                 "HaiLPER", "\u2699 %s \u2192 %s"
-                % (name, content.split("\n")[0][:90]))
+                % (item.get("name"), item.get("content", "").split("\n")[0][:90]))
         try:
             raw = json.loads(raw_message_json) if raw_message_json else None
         except ValueError:
@@ -1244,8 +1278,13 @@ class _Bridge(object):
             self._set_status("Tool step limit reached.")
             return
         self._set_status("Using tools\u2026 %d step(s) left" % self.tool_steps)
-        self._start_request(self.tool_messages, self.tool_system,
-                            self.tool_tools, self.tool_steps)
+        try:
+            self._start_request(self.tool_messages, self.tool_system,
+                                self.tool_tools, self.tool_steps)
+        except Exception as error:  # noqa: BLE001
+            ui.log("continue_tools start failed: %r" % error)
+            self.tool_active = False
+            self._set_busy(False)
 
     def _apply_directive_edit(self, edit):
         action = edit.get("action", "")
@@ -1410,6 +1449,17 @@ class _Bridge(object):
             return
         self.streaming = False
         self.streaming_partial = ""
+
+        # Results of off-thread web tools (these carry no ok field).
+        tool_results = payload.get("tool_results")
+        if tool_results and self.tool_active:
+            try:
+                results = json.loads(tool_results)
+            except ValueError:
+                results = []
+            self._continue_tools(results, payload.get("raw_message") or "")
+            return
+
         ui.log("on_result ok=%s error=%r"
                % (payload.get("ok"), payload.get("error")))
         self._set_busy(False)
@@ -1437,7 +1487,12 @@ class _Bridge(object):
             except ValueError:
                 calls = []
             if calls and self.tool_steps > 0:
-                self._run_tools(calls, payload.get("raw_message") or "")
+                try:
+                    self._run_tools(calls, payload.get("raw_message") or "")
+                except Exception as error:  # noqa: BLE001
+                    ui.log("run_tools failed: %r" % error)
+                    self.tool_active = False
+                    self._set_busy(False)
                 return
 
         raw = payload.get("text", "")

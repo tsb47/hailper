@@ -46,3 +46,29 @@ jobs:
           files: |
             dist/*.oxt
             dist/SHA256SUMS
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LibreOffice and python-uno
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer python3-uno
+
+      - name: Start headless LibreOffice
+        run: |
+          soffice --headless --invisible --norestore --nologo --nodefault \
+            -env:UserInstallation=file:///tmp/lo-test \
+            --accept="socket,host=127.0.0.1,port=2002;urp;" &
+          for i in $(seq 1 60); do
+            ss -ltn 2>/dev/null | grep -q 2002 && break
+            sleep 2
+          done
+          ss -ltn 2>/dev/null | grep -q 2002
+
+      - name: Run integration tests
+        env:
+          HAILPER_TEST_PORT: "2002"
+        run: python3 -m unittest discover -s tests -p 'test_integration.py' -v

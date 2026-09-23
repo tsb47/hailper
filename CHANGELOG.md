@@ -4,6 +4,20 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-09-23
+
+### Changed
+
+- **Web tools run off the UI thread** so the panel stays responsive while the
+  model searches; the results are threaded back into the tool loop (with a
+  "Searching the web…" status). Stop still cancels.
+
+### Added
+
+- **Integration tests in CI**: a job installs headless LibreOffice and
+  `python3-uno`, starts a UNO socket, and runs `tests/test_integration.py`
+  (formatted insert + the document tools) against a real LibreOffice.
+
 ## [1.4.4] - 2026-09-23
 
 ### Changed
