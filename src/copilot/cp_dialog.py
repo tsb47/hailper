@@ -168,6 +168,9 @@ class _Bridge(object):
         self._chips_visible = False
         self.feedback_mode = None
         self.last_error = None
+        self.history_summary = ""
+        self.summary_upto = 0
+        self.summary_pending = False
         self.use_tools = False
         self.tool_active = False
         self.tool_tools = []
@@ -671,6 +674,9 @@ class _Bridge(object):
         self.conversation_id = cid
         self.history = [(m.get("who", "HaiLPER"), m.get("text", ""))
                         for m in data.get("messages", [])]
+        self.history_summary = data.get("summary", "") or ""
+        self.summary_upto = int(data.get("summary_upto", 0) or 0)
+        self.summary_pending = False
         self._refresh_history_view()
         self._set_status("Loaded \u201c%s\u201d." % (data.get("name") or "conversation"))
 
@@ -687,7 +693,9 @@ class _Bridge(object):
                 break
         meta = {"provider": self.config.get("provider"),
                 "model": cp_config.active_provider(self.config)[3],
-                "persona": self.config.get("persona")}
+                "persona": self.config.get("persona"),
+                "summary": self.history_summary,
+                "summary_upto": self.summary_upto}
         if self.conversation_id:
             cp_conversations.update(self.conversation_id, name, messages, meta)
         else:
@@ -789,8 +797,23 @@ class _Bridge(object):
             self.on_clear()
         elif action == "agent":
             self.on_toggle_agent()
+        elif action == "context":
+            self._show_context()
         elif action == "diagnostics":
             self._copy_diagnostics()
+
+    def _show_context(self):
+        doc_ctx = self._current_doc_ctx()
+        if doc_ctx is None:
+            self._set_status("No document is open.")
+            return
+        instruction = self._instruction_value()
+        provider_id, _spec, _key, model, _base = cp_config.active_provider(self.config)
+        budget = cp_context.budget_tokens(provider_id, model, self.config)
+        text = self._build_context(doc_ctx, instruction, budget) or "(no context)"
+        import cp_prompt
+        cp_prompt.ask(self.ctx, self.frame, "HaiLPER - Context",
+                      "Context sent to the model:", text)
 
     def _copy_diagnostics(self):
         import cp_diagnostics
@@ -969,10 +992,10 @@ class _Bridge(object):
         except Exception:
             pass
 
-    def history_as_messages(self):
+    def history_as_messages(self, start=0):
         return [
             {"role": "user" if who == "You" else "assistant", "content": message}
-            for who, message in self.history
+            for who, message in self.history[start:]
         ]
 
     # ------------------------------------------------------------- show/dock
@@ -1088,6 +1111,39 @@ class _Bridge(object):
             ui.log("context build failed: %r" % error)
             return ""
 
+    def _maybe_summarize(self, keep):
+        if self.summary_pending:
+            return
+        older = self.history[:max(0, len(self.history) - keep)]
+        if len(older) < 4:
+            return
+        self.summary_pending = True
+        provider_id, _spec, api_key, model, base_url = cp_config.active_provider(
+            self.config)
+        threading.Thread(
+            target=self._summary_worker,
+            args=(provider_id, api_key, model, base_url,
+                  self.history_as_messages(0)[:len(older)], len(older),
+                  self.gen_id),
+            daemon=True).start()
+
+    def _summary_worker(self, provider_id, api_key, model, base_url,
+                        messages, upto, gen_id):
+        import cp_memory
+        summary = ""
+        try:
+            summary = cp_memory.summarize(provider_id, api_key, model, base_url,
+                                          messages)
+        except Exception as error:  # noqa: BLE001
+            ui.log("summary failed: %r" % error)
+        try:
+            self.async_callback.addCallback(
+                self.callback_object,
+                ui.payload(summary=summary or "", summary_upto=int(upto),
+                           gen=gen_id))
+        except Exception:
+            pass
+
     def on_generate(self):
         ui.log("on_generate action=%s busy=%s" % (self.action, self.busy))
         if self.busy:
@@ -1126,7 +1182,9 @@ class _Bridge(object):
                 text = doc_ctx.selected_text
             else:
                 full = doc_ctx.full_text()
-                if cp_context.estimate_tokens(full) <= int(budget * 0.5):
+                if self.action == "summarize":
+                    text = cp_context.fit_to_budget(full, int(budget * 0.7))
+                elif cp_context.estimate_tokens(full) <= int(budget * 0.5):
                     text = full
                 else:
                     text = (doc_ctx.section_text()
@@ -1144,11 +1202,17 @@ class _Bridge(object):
             self.suggestions = []
 
         if self.action == "chat":
-            messages = self.history_as_messages()
+            keep = int(context_cfg.get("history_turns", 8))
+            start = self.summary_upto if self.history_summary else 0
+            messages = self.history_as_messages(start)
             messages.append({"role": "user", "content": instruction})
-            messages, _used = cp_context.trim_history(
-                messages, budget, int(context_cfg.get("history_turns", 8)))
+            messages, _used = cp_context.trim_history(messages, budget, keep)
             system_extra = context_text
+            if self.history_summary:
+                system_extra = ("Conversation so far:\n%s\n\n%s"
+                                % (self.history_summary, system_extra)).strip()
+            if context_cfg.get("summarize_history", True):
+                self._maybe_summarize(keep)
         else:
             messages, system_extra = cp_prompts.build_messages(
                 self.action, text, instruction, choices, None)
@@ -1473,6 +1537,13 @@ class _Bridge(object):
         if not self.alive:
             return
         payload = ui.read_payload(data)
+        if "summary_upto" in payload:
+            self.summary_pending = False
+            summary = payload.get("summary") or ""
+            if summary:
+                self.history_summary = summary
+                self.summary_upto = int(payload.get("summary_upto", 0) or 0)
+            return
         if payload.get("gen") != self.gen_id:
             return
         if "usage_in" in payload or "usage_out" in payload:
@@ -1998,6 +2069,9 @@ class _Bridge(object):
         self.history = []
         self.result_text = ""
         self.conversation_id = None
+        self.history_summary = ""
+        self.summary_upto = 0
+        self.summary_pending = False
         ui.set_text(self.dialog, "result", "")
         ui.set_text(self.dialog, "instruction", "")
         self.set_action("chat")

@@ -24,7 +24,7 @@ class _Bridge(object):
 
     def build(self):
         ctx = self.ctx
-        rows = 5 + len(self.starters) + (1 if self.starters else 0)
+        rows = 6 + len(self.starters) + (1 if self.starters else 0)
         height = PAD * 2 + rows * (BTN_H + 4) + LINE_H + 4
         self.model = ui.smgr(ctx).createInstanceWithContext(
             "com.sun.star.awt.UnoControlDialogModel", ctx)
@@ -71,6 +71,10 @@ class _Bridge(object):
             PositionX=PAD, PositionY=y, Width=content_w, Height=BTN_H,
             Label="Agent mode: %s" % ("on" if self.agent_on else "off"))
         y += BTN_H + 4
+        add("com.sun.star.awt.UnoControlButton", "btn_context",
+            PositionX=PAD, PositionY=y, Width=content_w, Height=BTN_H,
+            Label="Show context\u2026")
+        y += BTN_H + 4
         add("com.sun.star.awt.UnoControlButton", "btn_diagnostics",
             PositionX=PAD, PositionY=y, Width=content_w, Height=BTN_H,
             Label="Copy diagnostics")
@@ -98,6 +102,8 @@ class _Bridge(object):
             ui.ActionListener(lambda event: self._pick("newchat")))
         self.dialog.getControl("btn_agent").addActionListener(
             ui.ActionListener(lambda event: self._pick("agent")))
+        self.dialog.getControl("btn_context").addActionListener(
+            ui.ActionListener(lambda event: self._pick("context")))
         self.dialog.getControl("btn_diagnostics").addActionListener(
             ui.ActionListener(lambda event: self._pick("diagnostics")))
         self.dialog.getControl("btn_close").addActionListener(

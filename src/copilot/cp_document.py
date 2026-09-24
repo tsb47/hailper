@@ -401,6 +401,37 @@ class DocumentContext(object):
                 break
         return "\n".join(lines).strip()[:max_chars]
 
+    def section_by_heading(self, heading, max_chars=8000):
+        """Text of the section whose heading matches (or contains) the name."""
+        if self.kind != WRITER:
+            return ""
+        wanted = (heading or "").strip().lower()
+        if not wanted:
+            return ""
+        paragraphs = self._writer_paragraphs()
+        start, level = -1, 0
+        for index, paragraph in enumerate(paragraphs):
+            if paragraph["level"] > 0 and paragraph["text"].strip().lower() == wanted:
+                start, level = index, paragraph["level"]
+                break
+        if start < 0:
+            for index, paragraph in enumerate(paragraphs):
+                if paragraph["level"] > 0 and wanted in paragraph["text"].strip().lower():
+                    start, level = index, paragraph["level"]
+                    break
+        if start < 0:
+            return ""
+        lines, length = [], 0
+        for index in range(start, len(paragraphs)):
+            paragraph = paragraphs[index]
+            if index > start and paragraph["level"] and paragraph["level"] <= level:
+                break
+            lines.append(paragraph["text"])
+            length += len(paragraph["text"])
+            if length >= max_chars:
+                break
+        return "\n".join(lines).strip()[:max_chars]
+
     def surrounding(self, count=2):
         """The +/- count paragraphs around the cursor (list of strings)."""
         if self.kind != WRITER:

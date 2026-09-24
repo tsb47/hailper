@@ -4,6 +4,22 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-09-23
+
+### Added
+
+- **Context tools** for the model: `search_document`, `read_context`,
+  `get_section` and `get_metadata`; `read_document` now returns the section
+  around the cursor by default (add `"full": true` for the whole document).
+- **Rolling conversation summary**: older turns are compressed by one background
+  model call and recalled on later requests, and saved with the conversation.
+- **Show context…** in the ⋯ menu, to see exactly what is sent to the model.
+
+### Changed
+
+- **Summarize** sends the whole (budget-trimmed) document; other actions use the
+  selection/section context.
+
 ## [1.6.0] - 2026-09-23
 
 ### Added
