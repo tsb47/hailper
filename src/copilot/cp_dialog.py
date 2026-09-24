@@ -1047,6 +1047,47 @@ class _Bridge(object):
         store.setdefault(self.action, {}).update(choices)
         self.apply_meta()
 
+    def _build_context(self, doc_ctx, instruction, budget):
+        try:
+            bundle = {"document": "", "section": "", "around": "",
+                      "selection": "", "outline": ""}
+            meta = doc_ctx.metadata()
+            bits = ["kind: %s" % meta.get("kind", "?")]
+            if meta.get("title"):
+                bits.append('title: "%s"' % meta["title"])
+            bits.append("words: %s" % meta.get("words", 0))
+            bits.append("read-only: %s" % ("yes" if meta.get("read_only") else "no"))
+            if meta.get("track_changes") is not None:
+                bits.append("tracked-changes: %s"
+                            % ("on" if meta["track_changes"] else "off"))
+            bundle["document"] = " | ".join(bits)
+            if doc_ctx.kind == cp_document.WRITER:
+                level, heading = doc_ctx.section_heading()
+                if heading:
+                    bundle["section"] = "Heading %d: %s" % (level, heading)
+                around = doc_ctx.surrounding(2)
+                if around:
+                    bundle["around"] = "\n".join("- " + p[:300] for p in around)
+                if doc_ctx.has_selection():
+                    bundle["selection"] = doc_ctx.selected_text[:4000]
+                bundle["outline"] = doc_ctx.outline_text()
+            blocks = [("context", cp_prompts.format_context(bundle))]
+            if doc_ctx.kind == cp_document.WRITER:
+                try:
+                    k = int((self.config.get("context") or {}).get("max_relevant", 6))
+                    relevant = cp_context.select_relevant(
+                        instruction, doc_ctx.paragraphs(), k)
+                    if relevant:
+                        blocks.append(("relevant",
+                                       cp_prompts.format_context({}, relevant)))
+                except Exception:
+                    pass
+            text, _used = cp_context.fit_blocks(blocks, budget)
+            return text
+        except Exception as error:  # noqa: BLE001
+            ui.log("context build failed: %r" % error)
+            return ""
+
     def on_generate(self):
         ui.log("on_generate action=%s busy=%s" % (self.action, self.busy))
         if self.busy:
@@ -1070,30 +1111,31 @@ class _Bridge(object):
             self.scope = "selection" if doc_ctx.has_selection() else "document"
         self.flow_doc_ctx = doc_ctx if (doc_ctx is not None
                                         and doc_ctx.has_selection()) else None
-        text = ""
-        if self.captured_text:
-            text = self.captured_text
-        elif doc_ctx is not None:
-            if self.scope == "document":
-                text = doc_ctx.full_text()
-            elif self.scope == "selection" and doc_ctx.has_selection():
+
+        provider_id, _spec, _key, model, _base = cp_config.active_provider(self.config)
+        budget = cp_context.budget_tokens(provider_id, model, self.config)
+        context_cfg = self.config.get("context") or {}
+        allow_context = (self.config.get("allow_document_access", True)
+                         and bool(context_cfg.get("auto_context", True)))
+
+        # The body sent to the model: the selection, a whole small document, or
+        # the current section for a large document.
+        text = self.captured_text
+        if not text and doc_ctx is not None:
+            if doc_ctx.has_selection():
                 text = doc_ctx.selected_text
             else:
-                text = doc_ctx.target_text()
-        if self.action == "chat":
-            context = self.captured_text or (
-                doc_ctx.target_text() if doc_ctx is not None else "")
-        else:
-            context = None
+                full = doc_ctx.full_text()
+                if cp_context.estimate_tokens(full) <= int(budget * 0.5):
+                    text = full
+                else:
+                    text = (doc_ctx.section_text()
+                            or cp_context.fit_to_budget(full, int(budget * 0.5)))
 
-        if self.action == "chat":
-            messages = self.history_as_messages()
-            messages.append({"role": "user", "content": instruction})
-            system_extra = cp_prompts._truncate(context) if context else ""
-        else:
-            messages, system_extra = cp_prompts.build_messages(
-                self.action, text, instruction, choices, context
-            )
+        context_text = ""
+        if allow_context and doc_ctx is not None:
+            context_text = self._build_context(doc_ctx, instruction, budget)
+
         self.captured_text = ""
         self.doc_requested = False
 
@@ -1101,18 +1143,17 @@ class _Bridge(object):
         if self.action != "proofread":
             self.suggestions = []
 
-        # Give the model the document outline for structural awareness.
-        if (self.action in ("chat", "summarize")
-                and doc_ctx is not None
-                and self.config.get("allow_document_access", True)):
-            try:
-                outline = doc_ctx.outline_text()
-                if outline:
-                    system_extra = ((system_extra + "\n\nDocument outline:\n" + outline)
-                                    if system_extra
-                                    else ("Document outline:\n" + outline))
-            except Exception:
-                pass
+        if self.action == "chat":
+            messages = self.history_as_messages()
+            messages.append({"role": "user", "content": instruction})
+            messages, _used = cp_context.trim_history(
+                messages, budget, int(context_cfg.get("history_turns", 8)))
+            system_extra = context_text
+        else:
+            messages, system_extra = cp_prompts.build_messages(
+                self.action, text, instruction, choices, None)
+            if context_text:
+                system_extra = ("%s\n\n%s" % (context_text, system_extra)).strip()
 
         persona = cp_personas.active(self.config)
         system = self.config.get("system_prompt", "")

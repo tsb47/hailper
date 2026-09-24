@@ -314,6 +314,144 @@ class DocumentContext(object):
             return ""
         return "\n".join(lines)
 
+    # ----------------------------------------------------------- structure
+    def _writer_paragraphs(self):
+        paragraphs = []
+        try:
+            text = self.doc.getText()
+            enum = text.createEnumeration()
+            styles = self.doc.getStyleFamilies().getByName("ParagraphStyles")
+            while enum.hasMoreElements():
+                element = enum.nextElement()
+                if not _supports(element, "com.sun.star.text.Paragraph"):
+                    continue
+                try:
+                    style_name = element.getPropertyValue("ParaStyleName")
+                except Exception:
+                    style_name = ""
+                level = 0
+                try:
+                    level = styles.getByName(style_name).getPropertyValue("OutlineLevel")
+                except Exception:
+                    level = 0
+                paragraphs.append({"text": element.getString(),
+                                   "style": style_name,
+                                   "level": int(level or 0)})
+        except Exception:
+            return []
+        return paragraphs
+
+    def _current_paragraph_index(self):
+        cursor = self.writer_view_cursor()
+        if cursor is None:
+            return -1, ""
+        try:
+            probe = self.doc.getText().createTextCursorByRange(cursor.getStart())
+            probe.gotoStartOfParagraph(False)
+            probe.gotoEndOfParagraph(True)
+            current = probe.getString()
+        except Exception:
+            current = ""
+        paragraphs = self._writer_paragraphs()
+        for index, paragraph in enumerate(paragraphs):
+            if paragraph["text"] == current:
+                return index, current
+        return -1, current
+
+    def section_heading(self):
+        """Return (level, text) of the nearest preceding heading, or (0, '')."""
+        if self.kind != WRITER:
+            return (0, "")
+        index, _text = self._current_paragraph_index()
+        paragraphs = self._writer_paragraphs()
+        if index < 0:
+            index = len(paragraphs)
+        for position in range(min(index, len(paragraphs) - 1), -1, -1):
+            paragraph = paragraphs[position]
+            if paragraph["level"] > 0 and paragraph["text"].strip():
+                return (paragraph["level"], paragraph["text"].strip())
+        return (0, "")
+
+    def section_text(self, max_chars=6000):
+        """Text of the current section (heading to the next same/higher one)."""
+        if self.kind != WRITER:
+            return ""
+        index, _text = self._current_paragraph_index()
+        paragraphs = self._writer_paragraphs()
+        if not paragraphs:
+            return ""
+        if index < 0:
+            index = len(paragraphs)
+        start = 0
+        level = 0
+        for position in range(min(index, len(paragraphs) - 1), -1, -1):
+            if paragraphs[position]["level"] > 0:
+                start = position
+                level = paragraphs[position]["level"]
+                break
+        lines = []
+        length = 0
+        for position in range(start, len(paragraphs)):
+            paragraph = paragraphs[position]
+            if position > start and paragraph["level"] and paragraph["level"] <= level:
+                break
+            lines.append(paragraph["text"])
+            length += len(paragraph["text"])
+            if length >= max_chars:
+                break
+        return "\n".join(lines).strip()[:max_chars]
+
+    def surrounding(self, count=2):
+        """The +/- count paragraphs around the cursor (list of strings)."""
+        if self.kind != WRITER:
+            return []
+        index, _text = self._current_paragraph_index()
+        paragraphs = self._writer_paragraphs()
+        if index < 0:
+            return []
+        low = max(0, index - count)
+        high = min(len(paragraphs), index + count + 1)
+        return [paragraphs[position]["text"] for position in range(low, high)
+                if paragraphs[position]["text"].strip()]
+
+    def paragraphs(self):
+        """A flat list of non-empty paragraphs (Writer) or lines."""
+        texts = [paragraph["text"] for paragraph in self._writer_paragraphs()
+                 if paragraph["text"].strip()]
+        if texts:
+            return texts
+        return [line for line in self.full_text().split("\n") if line.strip()]
+
+    def metadata(self):
+        title = ""
+        author = ""
+        try:
+            supplier = self.doc.queryInterface(
+                uno.getTypeByName("com.sun.star.document.XDocumentPropertiesSupplier"))
+            props = supplier.getDocumentProperties()
+            title = props.Title or ""
+            author = props.Author or ""
+        except Exception:
+            pass
+        read_only = False
+        try:
+            read_only = bool(self.doc.isReadOnly())
+        except Exception:
+            pass
+        track_changes = None
+        try:
+            track_changes = bool(self.doc.getPropertyValue("RecordChanges"))
+        except Exception:
+            track_changes = None
+        text = ""
+        try:
+            text = self.full_text()
+        except Exception:
+            pass
+        return {"kind": self.kind, "title": title, "author": author,
+                "words": len(text.split()), "read_only": read_only,
+                "track_changes": track_changes}
+
     def target_text(self):
         """Selection when there is one, otherwise the whole document."""
         if self.has_selection():

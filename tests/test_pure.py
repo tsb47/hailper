@@ -194,6 +194,33 @@ class TestContext(unittest.TestCase):
         self.assertLess(len(out), len(text))
         self.assertIn("trimmed", out)
 
+    def test_budget(self):
+        value = cp_context.budget_tokens(
+            "deepseek", "deepseek-chat", {"context": {"budget_ratio": 0.5}})
+        self.assertGreater(value, 1000)
+
+    def test_select_relevant(self):
+        paragraphs = ["The cat sat on the mat.",
+                      "Dogs are loyal friends.",
+                      "The feline rested on the rug.",
+                      "Quantum physics is complex."]
+        ranked = cp_context.select_relevant("cat mat", paragraphs, k=2)
+        self.assertTrue(ranked)
+        self.assertEqual(ranked[0][0], 0)
+
+    def test_fit_blocks(self):
+        text, _used = cp_context.fit_blocks(
+            [("a", "x" * 40), ("b", "y" * 4000)], 20)
+        self.assertIn("x", text)
+        self.assertIn("trimmed", text)
+        self.assertLess(len(text), 4040)
+
+    def test_trim_history(self):
+        messages = [{"role": "user", "content": "a" * 400} for _ in range(20)]
+        kept, _used = cp_context.trim_history(messages, 100, keep_turns=2)
+        self.assertGreaterEqual(len(kept), 2)
+        self.assertLess(len(kept), 20)
+
 
 class TestUsage(unittest.TestCase):
     def test_price_lookup(self):
@@ -262,6 +289,21 @@ class TestCustomActions(unittest.TestCase):
         meta = cp_actions.as_meta(cp_actions.normalize({"title": "T"}))
         self.assertIn("primary", meta)
         self.assertTrue(meta["custom"])
+
+
+class TestContextFormatting(unittest.TestCase):
+    def test_format_context(self):
+        out = cp_prompts.format_context({
+            "document": "kind: writer | words: 10",
+            "section": "Heading 1: Intro",
+            "selection": "hello",
+            "around": "- a\n- b",
+            "outline": "Intro",
+        }, relevant=[(0, "the cat", 1.0)])
+        self.assertIn("DOCUMENT", out)
+        self.assertIn("CURRENT SECTION", out)
+        self.assertIn("SELECTION", out)
+        self.assertIn("RELEVANT PASSAGES", out)
 
 
 class TestDiagnostics(unittest.TestCase):

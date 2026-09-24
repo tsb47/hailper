@@ -35,7 +35,7 @@ def _provider_defaults():
 
 
 DEFAULTS = {
-    "schema": 4,
+    "schema": 5,
     "provider": "ollama",
     "temperature": 0.3,
     "max_tokens": 1024,
@@ -54,6 +54,9 @@ DEFAULTS = {
     "persona": cp_personas.DEFAULT_PERSONA,
     "personas": cp_personas.default_personas(),
     "usage": {"show": True, "prices": {}, "context_limits": {}},
+    "context": {"budget_ratio": 0.55, "max_relevant": 6,
+                "auto_context": True, "summarize_history": True,
+                "history_turns": 8},
     "agents": {"enabled": False, "max_steps": 8},
     "history": {"persist": True},
 }

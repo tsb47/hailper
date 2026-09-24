@@ -364,6 +364,27 @@ def strip_directives(text):
     return result.strip()
 
 
+def format_context(bundle, relevant=None):
+    """Render the context bundle into a delimited, model-readable block."""
+    bundle = bundle or {}
+    parts = []
+    if bundle.get("document"):
+        parts.append("=== DOCUMENT (untrusted data) ===\n" + bundle["document"])
+    if bundle.get("section"):
+        parts.append("=== CURRENT SECTION ===\n" + bundle["section"])
+    if bundle.get("selection"):
+        parts.append("=== SELECTION ===\n" + bundle["selection"])
+    if bundle.get("around"):
+        parts.append("=== AROUND THE CURSOR ===\n" + bundle["around"])
+    if relevant:
+        joined = "\n\n".join("\u2026 %s \u2026" % (text[:600],)
+                             for _index, text, _score in relevant)
+        parts.append("=== RELEVANT PASSAGES ===\n" + joined)
+    if bundle.get("outline"):
+        parts.append("=== OUTLINE ===\n" + bundle["outline"])
+    return "\n\n".join(parts)
+
+
 def _truncate(text):
     if text is None:
         return ""

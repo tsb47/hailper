@@ -1,6 +1,7 @@
-"""Token estimation, model context windows, and budget-aware truncation."""
+"""Token estimation, model context windows, budgeting and relevance ranking."""
 
 import math
+import re
 
 # Approximate context windows (tokens) by model-name substring; overridden by
 # the user's ``usage.context_limits`` config.  Longest/most specific keys should
@@ -67,3 +68,110 @@ def fit_to_budget(text, budget_tokens, note="\n\n[... content trimmed to fit ...
     head = int(budget_chars * 0.7)
     tail = budget_chars - head
     return text[:head] + note + (text[-tail:] if tail > 0 else "")
+
+
+_WORD = re.compile(r"[A-Za-z0-9']+")
+
+
+def _tokenize(text):
+    return [word.lower() for word in _WORD.findall(text or "")]
+
+
+def budget_tokens(provider_id, model, config=None, reserve=1200, ratio=None):
+    """Tokens available for the prompt (a fraction of the model window)."""
+    if ratio is None:
+        ratio = float(((config or {}).get("context") or {}).get(
+            "budget_ratio", 0.55))
+    window = context_window(provider_id, model, config)
+    return max(512, int(window * ratio) - reserve)
+
+
+def select_relevant(instruction, paragraphs, k=6):
+    """Rank paragraphs against the instruction with a BM25-style score.
+
+    Returns a list of (index, text, score), highest first, score > 0 only.
+    """
+    query = _tokenize(instruction)
+    if not query or not paragraphs:
+        return []
+    docs = [_tokenize(p) for p in paragraphs]
+    count = len(docs)
+    avg = sum(len(doc) for doc in docs) / float(max(1, count))
+    df = {}
+    for doc in docs:
+        for term in set(doc):
+            df[term] = df.get(term, 0) + 1
+
+    def idf(term):
+        return math.log(1 + (count - df.get(term, 0) + 0.5)
+                        / (df.get(term, 0) + 0.5))
+
+    k1, b = 1.2, 0.75
+    scored = []
+    for index, doc in enumerate(docs):
+        if not doc:
+            continue
+        tf = {}
+        for term in doc:
+            tf[term] = tf.get(term, 0) + 1
+        score = 0.0
+        for term in set(query):
+            if term not in tf:
+                continue
+            denom = tf[term] + k1 * (1 - b + b * len(doc) / (avg or 1.0))
+            score += idf(term) * (tf[term] * (k1 + 1)) / denom
+        if score > 0:
+            scored.append((index, paragraphs[index], score))
+    scored.sort(key=lambda item: item[2], reverse=True)
+    return scored[:max(1, int(k))]
+
+
+def fit_blocks(blocks, budget):
+    """Assemble (name, text) blocks in priority order within a token budget.
+
+    Returns (text, used_tokens).
+    """
+    out = []
+    used = 0
+    for _name, text in blocks:
+        if not text:
+            continue
+        remaining = budget - used
+        if remaining <= 0:
+            break
+        cost = estimate_tokens(text)
+        if cost <= remaining:
+            out.append(text)
+            used += cost
+        else:
+            trimmed = fit_to_budget(text, remaining)
+            out.append(trimmed)
+            used += estimate_tokens(trimmed)
+            break
+    return "\n\n".join(out), used
+
+
+def trim_history(messages, budget, keep_turns=8):
+    """Keep the most recent messages within a token budget.
+
+    Returns (messages, used_tokens). Older messages are added back from newest
+    to oldest while the budget allows.
+    """
+    messages = list(messages or [])
+    keep = max(1, int(keep_turns or 8))
+    tail = messages[-keep:]
+    head = messages[:-keep]
+
+    def cost(message):
+        content = message.get("content", "") if isinstance(message, dict) else str(message)
+        return estimate_tokens(content)
+
+    used = sum(cost(message) for message in tail)
+    kept_head = []
+    for message in reversed(head):
+        if used + cost(message) <= budget:
+            kept_head.insert(0, message)
+            used += cost(message)
+        else:
+            break
+    return kept_head + tail, used

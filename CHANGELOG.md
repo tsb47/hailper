@@ -4,6 +4,19 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-09-23
+
+### Added
+
+- **Context awareness**: each request now carries a structured bundle — document
+  metadata (kind/title/words/read-only/tracked-changes), the **current section
+  heading**, the selection, the **paragraphs around the cursor**, the outline,
+  and the **top-K most relevant paragraphs** (BM25-ranked against your message).
+- **Token budgeting**: context and chat history are packed to ~55% of the
+  model's context window (`context.budget_ratio`), older turns are trimmed, and
+  for large documents the message body falls back to the **current section**
+  instead of dumping the whole file. New settings under `context`.
+
 ## [1.5.0] - 2026-09-23
 
 ### Changed
