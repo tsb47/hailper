@@ -2054,10 +2054,14 @@ class _Bridge(object):
         selection = doc_ctx.selected_text if doc_ctx is not None else ""
         self.seed_chat(selection)
 
-    def seed_chat(self, text):
+    def seed_chat(self, text, prefix=None):
         if self.action != "chat":
             self.set_action("chat")
-        prompt = "About this:\n%s\n\n" % text if text else ""
+        if text:
+            prompt = ("%s\n\n%s\n\n" % (prefix, text)) if prefix \
+                else ("About this:\n%s\n\n" % text)
+        else:
+            prompt = ("%s\n\n" % prefix) if prefix else ""
         self._set_instruction_text(prompt, grey=not bool(prompt))
         try:
             self.dialog.getControl("instruction").setFocus()
@@ -2338,7 +2342,14 @@ def _apply_sidebar_action(bridge, frame, action, config, params=None):
     if action == "chat_about":
         bridge.set_action("chat")
         doc_ctx = bridge._current_doc_ctx()
-        bridge.seed_chat(doc_ctx.selected_text if doc_ctx is not None else "")
+        bridge.seed_chat(doc_ctx.selected_text if doc_ctx is not None else "",
+                         prefix=params.get("prefix"))
+        return
+    if action == "clear":
+        bridge.on_clear()
+        return
+    if action == "show_context":
+        bridge._show_context()
         return
 
     bridge.set_action(action)

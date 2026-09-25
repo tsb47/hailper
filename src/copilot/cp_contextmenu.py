@@ -5,6 +5,7 @@ fallback whenever the panel or a command is used.
 """
 
 import os
+import re
 import sys
 
 import uno
@@ -24,6 +25,7 @@ from com.sun.star.ui import XContextMenuInterception
 from com.sun.star.ui.ContextMenuInterceptorAction import CONTINUE_MODIFIED
 from com.sun.star.ui.ContextMenuInterceptorAction import IGNORED
 
+import cp_context
 import cp_document
 import cp_prompts
 import cp_ui as ui
@@ -89,8 +91,10 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
                 return IGNORED
             if self._has_our_menu(container):
                 return CONTINUE_MODIFIED
-            selected = bool(_selection_text(event).strip())
-            self._build_menu(factory, container, self._document_kind(), selected)
+            text = _selection_text(event)
+            selected = bool(text.strip())
+            self._build_menu(factory, container, self._document_kind(),
+                             selected, text)
             return CONTINUE_MODIFIED
         except Exception as error:
             ui.log("context menu error: %r" % error)
@@ -147,87 +151,9 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
         entries.append(("More\u2026", _command("translate", run=False)))
         self._append_submenu(factory, menu, "Translate to", entries)
 
-    def _flat_items(self, kind, selected):
-        labels = []
-        if selected:
-            if kind == cp_document.CALC:
-                labels = [("Summarize range", _command("summarize", scope="selection")),
-                          ("Rewrite", _command("rewrite")),
-                          ("Fix spelling", _command("proofread",
-                                                    categories="Spelling & grammar")),
-                          ("Explain formula", _command("explain"))]
-            elif kind == cp_document.IMPRESS:
-                labels = [("Rewrite", _command("rewrite")),
-                          ("Summarize slide", _command("summarize", scope="selection")),
-                          ("Speaker notes", _command("notes"))]
-            else:
-                labels = [("Summarize", _command("summarize")),
-                          ("Rewrite", _command("rewrite")),
-                          ("Proofread", _command("proofread")),
-                          ("Continue writing", _command("continue")),
-                          ("Explain", _command("explain"))]
-        else:
-            labels = [("Summarize document", _command("summarize", scope="document")),
-                      ("Explain document", _command("explain", scope="document")),
-                      ("Continue writing", _command("continue", scope="document"))]
-        labels.append(("Ask\u2026", _command("custom", run=False)))
-        labels.append(("Add to chat", _command("chat_about", run=False)))
-        return [("HaiLPER: " + text, command) for text, command in labels]
-
-    def _build_menu(self, factory, container, kind, selected):
-        try:
-            self._build_submenu(factory, container, kind, selected)
-        except Exception as error:
-            ui.log("context submenu failed, using flat menu: %r" % error)
-            for label, command in self._flat_items(kind, selected):
-                self._append_action(factory, container, label, command)
-
-    def _build_submenu(self, factory, container, kind, selected):
-        menu = self._submenu(factory)
-
-        if selected:
-            if kind == cp_document.CALC:
-                self._append_action(factory, menu, "Summarize range",
-                                    _command("summarize", scope="selection"))
-                self._append_action(factory, menu, "Rewrite", _command("rewrite"))
-                self._translate_submenu(factory, menu)
-                self._append_action(factory, menu, "Fix spelling",
-                                    _command("proofread",
-                                             categories="Spelling & grammar"))
-                self._append_action(factory, menu, "Explain formula",
-                                    _command("explain"))
-            elif kind == cp_document.IMPRESS:
-                self._append_action(factory, menu, "Rewrite text", _command("rewrite"))
-                self._append_action(factory, menu, "Summarize slide",
-                                    _command("summarize", scope="selection"))
-                self._translate_submenu(factory, menu)
-                self._append_action(factory, menu, "Speaker notes", _command("notes"))
-            else:
-                styles = [(style, _command("rewrite", style=style))
-                          for style in cp_prompts.REWRITE_STYLES]
-                self._append_submenu(factory, menu, "Rewrite as", styles)
-                self._append_action(factory, menu, "Summarize", _command("summarize"))
-                self._translate_submenu(factory, menu)
-                self._append_action(factory, menu, "Proofread", _command("proofread"))
-                self._append_action(factory, menu, "Continue writing",
-                                    _command("continue"))
-                self._append_action(factory, menu, "Explain", _command("explain"))
-        else:
-            self._append_action(factory, menu, "Summarize document",
-                                _command("summarize", scope="document"))
-            self._translate_submenu(factory, menu)
-            self._append_action(factory, menu, "Explain document",
-                                _command("explain", scope="document"))
-            if kind != cp_document.CALC:
-                self._append_action(factory, menu, "Continue writing",
-                                    _command("continue", scope="document"))
-
-        self._append_action(factory, menu, "Ask AI\u2026",
-                            _command("custom", run=False))
-        self._append_action(factory, menu, "Add to chat",
-                            _command("chat_about", run=False))
-
-        separator = factory.createInstance("com.sun.star.ui.ActionTriggerSeparator")
+    def _separator(self, factory, container):
+        separator = factory.createInstance(
+            "com.sun.star.ui.ActionTriggerSeparator")
         try:
             from com.sun.star.ui.ActionTriggerSeparatorType import LINE
             separator.queryInterface(_XPROPSET).setPropertyValue(
@@ -236,6 +162,131 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
             pass
         self._append(container, separator)
 
+    def _flat_items(self, kind, selected):
+        labels = [("Summarize", _command("summarize")),
+                  ("Rewrite", _command("rewrite")),
+                  ("Proofread", _command("proofread")),
+                  ("Explain", _command("explain")),
+                  ("Continue writing", _command("continue")),
+                  ("Ask\u2026", _command("custom", run=False)),
+                  ("Add to chat", _command("chat_about", run=False))]
+        if not selected:
+            labels = [("Summarize document", _command("summarize", scope="document")),
+                      ("Explain document", _command("explain", scope="document")),
+                      ("Continue writing", _command("continue", scope="document")),
+                      ("Ask\u2026", _command("custom", run=False)),
+                      ("Add to chat", _command("chat_about", run=False))]
+        return [("HaiLPER: " + text, command) for text, command in labels]
+
+    def _build_menu(self, factory, container, kind, selected, text=""):
+        try:
+            self._build_submenu(factory, container, kind, selected, text)
+        except Exception as error:
+            ui.log("context submenu failed, using flat menu: %r" % error)
+            for label, command in self._flat_items(kind, selected):
+                self._append_action(factory, container, label, command)
+
+    def _custom_actions(self, factory, menu):
+        try:
+            import cp_actions
+            cp_actions.register()
+            custom = cp_prompts.custom_actions()
+            if not custom:
+                return
+            self._separator(factory, menu)
+            for action_id, meta in custom.items():
+                self._append_action(factory, menu, meta.get("title", action_id),
+                                    _command(action_id))
+        except Exception:
+            pass
+
+    def _build_selection_menu(self, factory, menu, kind, text):
+        if kind == cp_document.CALC:
+            if text.strip().startswith("="):
+                self._append_action(factory, menu, "Explain formula",
+                                    _command("explain"))
+            self._append_action(factory, menu, "Summarize range",
+                                _command("summarize", scope="selection"))
+            self._append_action(factory, menu, "Fix spelling & grammar",
+                                _command("proofread",
+                                         categories="Spelling & grammar"))
+            self._append_action(factory, menu, "Rewrite", _command("rewrite"))
+            self._translate_submenu(factory, menu)
+            return
+        if kind == cp_document.IMPRESS:
+            self._append_action(factory, menu, "Rewrite text", _command("rewrite"))
+            self._append_action(factory, menu, "Summarize slide",
+                                _command("summarize", scope="selection"))
+            self._append_action(factory, menu, "Speaker notes", _command("notes"))
+            self._translate_submenu(factory, menu)
+            return
+
+        # Writer — adapt to what is selected.
+        if cp_context.word_count(text) <= 8:
+            self._append_action(factory, menu, "Explain / define",
+                                _command("explain"))
+        if cp_context.looks_url(text):
+            self._append_action(
+                factory, menu, "Summarize linked page",
+                _command("chat_about",
+                         prefix="Fetch this URL and summarise the page:"))
+        elif cp_context.looks_email(text):
+            self._append_action(
+                factory, menu, "Draft a reply",
+                _command("chat_about",
+                         prefix="Draft a short, professional reply to this:"))
+        self._append_action(
+            factory, menu, "Look up on the web",
+            _command("chat_about",
+                     prefix="Search the web for this and summarise what you find:"))
+        self._separator(factory, menu)
+
+        styles = [(style, _command("rewrite", style=style))
+                  for style in cp_prompts.REWRITE_STYLES]
+        self._append_submenu(factory, menu, "Rewrite as", styles)
+        self._append_action(factory, menu, "Shorten",
+                            _command("rewrite", style="clearer and more concise"))
+        self._append_action(factory, menu, "Make formal",
+                            _command("rewrite", style="more professional and formal"))
+        self._append_action(factory, menu, "Simplify",
+                            _command("rewrite", style="simpler, plain English"))
+        self._separator(factory, menu)
+
+        self._append_action(factory, menu, "Summarize", _command("summarize"))
+        self._translate_submenu(factory, menu)
+        self._append_action(factory, menu, "Proofread", _command("proofread"))
+        self._append_action(factory, menu, "Continue writing", _command("continue"))
+
+    def _build_document_menu(self, factory, menu, kind):
+        self._append_action(factory, menu, "Summarize document",
+                            _command("summarize", scope="document"))
+        self._translate_submenu(factory, menu)
+        self._append_action(factory, menu, "Explain document",
+                            _command("explain", scope="document"))
+        if kind != cp_document.CALC:
+            self._append_action(factory, menu, "Continue writing",
+                                _command("continue", scope="document"))
+        self._separator(factory, menu)
+        self._append_action(factory, menu, "Show context\u2026",
+                            _command("show_context", run=False))
+        self._append_action(factory, menu, "Settings\u2026",
+                            _command("options", run=False))
+
+    def _build_submenu(self, factory, container, kind, selected, text):
+        menu = self._submenu(factory)
+        if selected:
+            self._build_selection_menu(factory, menu, kind, text)
+        else:
+            self._build_document_menu(factory, menu, kind)
+
+        self._custom_actions(factory, menu)
+        self._separator(factory, menu)
+        self._append_action(factory, menu, "Ask AI\u2026",
+                            _command("custom", run=False))
+        self._append_action(factory, menu, "Add to chat",
+                            _command("chat_about", run=False))
+
+        self._separator(factory, container)
         trigger = self._trigger(factory, "HaiLPER", "")
         trigger.queryInterface(_XPROPSET).setPropertyValue("SubContainer", menu)
         self._append(container, trigger)

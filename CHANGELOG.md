@@ -4,6 +4,18 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-09-23
+
+### Changed
+
+- **Context-aware right-click menu.** It now adapts to the selection: a URL
+  offers **Summarize linked page**, an email address **Draft a reply**, a short
+  phrase **Explain / define**, plus **Look up on the web** and quick rewrite
+  presets (**Shorten**, **Make formal**, **Simplify**) alongside **Rewrite as ▸**.
+  Calc shows formula/range actions; Impress shows slide/notes actions.
+- The document (no-selection) menu adds **Show context…** and **Settings…**.
+- **Your custom actions** now appear in the right-click submenu.
+
 ## [1.7.0] - 2026-09-23
 
 ### Added

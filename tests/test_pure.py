@@ -215,6 +215,13 @@ class TestContext(unittest.TestCase):
         self.assertIn("trimmed", text)
         self.assertLess(len(text), 4040)
 
+    def test_selection_heuristics(self):
+        self.assertTrue(cp_context.looks_url("https://example.com/x"))
+        self.assertFalse(cp_context.looks_url("not a url"))
+        self.assertTrue(cp_context.looks_email("a.b@example.com"))
+        self.assertFalse(cp_context.looks_email("hello world"))
+        self.assertEqual(cp_context.word_count("one two three"), 3)
+
     def test_trim_history(self):
         messages = [{"role": "user", "content": "a" * 400} for _ in range(20)]
         kept, _used = cp_context.trim_history(messages, 100, keep_turns=2)

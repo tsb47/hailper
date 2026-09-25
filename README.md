@@ -166,16 +166,20 @@ matter. The last choice per action is remembered.
 ## Right-click menu
 
 Right-clicking always shows an **HaiLPER** submenu (items auto-run; they appear
-in Writer, Calc and Impress). With a **selection** it offers the actions below;
-with **no selection** it offers document-level actions (Summarize document,
-Translate, Explain document, Continue writing, Ask…, Add to chat).
+in Writer, Calc and Impress). The menu is **context-aware** — it adapts to what
+you have selected:
 
-- **Writer:** Rewrite as ▸ · Summarize · Translate to ▸ · Proofread · Continue
-  writing · Explain · Ask AI… · Add to chat
-- **Calc:** Summarize range · Rewrite · Translate to ▸ · Fix spelling · Explain
-  formula · Ask AI… · Add to chat
-- **Impress:** Rewrite text · Summarize slide · Translate to ▸ · Speaker notes ·
+- **Writer selection:** Explain / define (for short phrases) · Summarize linked
+  page (URLs) · Draft a reply (email addresses) · Look up on the web ·
+  Rewrite as ▸ · Shorten · Make formal · Simplify · Summarize · Translate to ▸ ·
+  Proofread · Continue writing · Ask AI… · Add to chat
+- **Calc:** Explain formula (when the cell starts with `=`), Summarize range,
+  Fix spelling & grammar, Rewrite, Translate to ▸, Ask AI…, Add to chat
+- **Impress:** Rewrite text · Summarize slide · Speaker notes · Translate to ▸ ·
   Ask AI… · Add to chat
+- **No selection:** Summarize document · Translate to ▸ · Explain document ·
+  Continue writing · Show context… · Settings…
+- **Your custom actions** are listed in the submenu too.
 - **Translate to** lists the top five languages plus **More…**, which opens the
   panel with the full language list.
 

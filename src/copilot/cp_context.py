@@ -71,10 +71,24 @@ def fit_to_budget(text, budget_tokens, note="\n\n[... content trimmed to fit ...
 
 
 _WORD = re.compile(r"[A-Za-z0-9']+")
+_URL_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
+_EMAIL_RE = re.compile(r"^[\w.+-]+@[\w-]+\.[\w.-]+$")
 
 
 def _tokenize(text):
     return [word.lower() for word in _WORD.findall(text or "")]
+
+
+def word_count(text):
+    return len((text or "").split())
+
+
+def looks_url(text):
+    return bool(_URL_RE.match((text or "").strip()))
+
+
+def looks_email(text):
+    return bool(_EMAIL_RE.match((text or "").strip()))
 
 
 def budget_tokens(provider_id, model, config=None, reserve=1200, ratio=None):
