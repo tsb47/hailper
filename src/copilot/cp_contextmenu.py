@@ -89,29 +89,43 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
             factory = container.queryInterface(_XMULTI)
             if factory is None:
                 return IGNORED
-            if self._has_our_menu(container):
-                return CONTINUE_MODIFIED
+            # Always rebuild so the submenu reflects the current selection,
+            # even when LibreOffice reuses the same container instance.
+            self._remove_our_menu(container)
             text = _selection_text(event)
             selected = bool(text.strip())
             self._build_menu(factory, container, self._document_kind(),
                              selected, text)
+            ui.log("context menu built selected=%s kind=%s" % (
+                selected, self._document_kind_name()))
             return CONTINUE_MODIFIED
         except Exception as error:
             ui.log("context menu error: %r" % error)
             return IGNORED
 
-    def _has_our_menu(self, container):
+    def _document_kind_name(self):
         try:
-            for index in range(container.getCount()):
-                try:
-                    props = container.getByIndex(index).queryInterface(_XPROPSET)
-                    if props is not None and props.getPropertyValue("Text") == "HaiLPER":
-                        return True
-                except Exception:
-                    pass
+            return {cp_document.WRITER: "writer",
+                    cp_document.CALC: "calc",
+                    cp_document.IMPRESS: "impress"}.get(
+                        self._document_kind(), "unknown")
         except Exception:
-            pass
-        return False
+            return "unknown"
+
+    def _remove_our_menu(self, container):
+        try:
+            count = container.getCount()
+        except Exception:
+            return
+        for index in range(count - 1, -1, -1):
+            try:
+                props = container.getByIndex(index).queryInterface(_XPROPSET)
+                if props is None:
+                    continue
+                if props.getPropertyValue("Text") == "HaiLPER":
+                    container.removeByIndex(index)
+            except Exception:
+                pass
 
     def _document_kind(self):
         try:
@@ -222,15 +236,17 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
             return
 
         # Writer — adapt to what is selected.
-        if cp_context.word_count(text) <= 8:
+        is_url = cp_context.looks_url(text)
+        is_email = cp_context.looks_email(text)
+        if cp_context.word_count(text) <= 8 and not is_url and not is_email:
             self._append_action(factory, menu, "Explain / define",
                                 _command("explain"))
-        if cp_context.looks_url(text):
+        if is_url:
             self._append_action(
                 factory, menu, "Summarize linked page",
                 _command("chat_about",
                          prefix="Fetch this URL and summarise the page:"))
-        elif cp_context.looks_email(text):
+        elif is_email:
             self._append_action(
                 factory, menu, "Draft a reply",
                 _command("chat_about",
@@ -269,8 +285,6 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
         self._separator(factory, menu)
         self._append_action(factory, menu, "Show context\u2026",
                             _command("show_context", run=False))
-        self._append_action(factory, menu, "Settings\u2026",
-                            _command("options", run=False))
 
     def _build_submenu(self, factory, container, kind, selected, text):
         menu = self._submenu(factory)
@@ -286,7 +300,9 @@ class ContextMenuInterceptor(unohelper.Base, XContextMenuInterceptor):
         self._append_action(factory, menu, "Add to chat",
                             _command("chat_about", run=False))
 
-        self._separator(factory, container)
+        # Insert only a single submenu trigger into the host context menu.
+        # Adding separators to the host container is unreliable across
+        # LibreOffice versions and can abort the whole insertion.
         trigger = self._trigger(factory, "HaiLPER", "")
         trigger.queryInterface(_XPROPSET).setPropertyValue("SubContainer", menu)
         self._append(container, trigger)

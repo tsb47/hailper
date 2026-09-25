@@ -259,12 +259,12 @@ class _Bridge(object):
 
         persona_choice = ui.create_model(
             self.model, "com.sun.star.awt.UnoControlComboBox", "persona_choice",
-            PositionX=0, PositionY=0, Width=58, Height=LINE_H + 4,
+            PositionX=0, PositionY=0, Width=50, Height=LINE_H + 4,
             Dropdown=True, HelpText="Persona")
         self.model.insertByName("persona_choice", persona_choice)
         action_choice = ui.create_model(
             self.model, "com.sun.star.awt.UnoControlComboBox", "action_choice",
-            PositionX=0, PositionY=0, Width=content_w - 78, Height=LINE_H + 4,
+            PositionX=0, PositionY=0, Width=content_w - 90, Height=LINE_H + 4,
             Dropdown=True, HelpText="Action")
         self.model.insertByName("action_choice", action_choice)
         add("com.sun.star.awt.UnoControlEdit", "instruction",
@@ -290,6 +290,10 @@ class _Bridge(object):
             PositionX=0, PositionY=0, Width=content_w - 32,
             Height=LINE_H + 3, Dropdown=True)
         self.model.insertByName("model_choice", model_choice)
+        add("com.sun.star.awt.UnoControlButton", "settings_btn",
+            PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
+            ImageURL=_ICON_BASE % "options-16.png",
+            HelpText="Settings")
         add("com.sun.star.awt.UnoControlButton", "menu_btn",
             PositionX=0, PositionY=0, Width=16, Height=LINE_H + 4,
             ImageURL=_ICON_BASE % "menu-16.png",
@@ -353,6 +357,11 @@ class _Bridge(object):
         try:
             self.dialog.getControl("menu_btn").addActionListener(
                 ui.ActionListener(lambda event: self.on_menu()))
+        except Exception:
+            pass
+        try:
+            self.dialog.getControl("settings_btn").addActionListener(
+                ui.ActionListener(lambda event: self.on_settings()))
         except Exception:
             pass
         try:
@@ -426,7 +435,7 @@ class _Bridge(object):
             for name in ("instruction", "generate", "result",
                          "status", "usage_label",
                          "action_choice", "persona_choice",
-                         "menu_btn"):
+                         "menu_btn", "settings_btn"):
                 try:
                     self.dialog.getControl(name).setVisible(True)
                 except Exception:
@@ -444,9 +453,10 @@ class _Bridge(object):
         visible = getattr(self, "visible_choices", [])
         positions = {}
         y = PAD
-        # One compact row: Persona (main) | Action | ⋯ menu.
-        positions["persona_choice"] = (PAD, y, 58, LINE_H + 4)
-        positions["action_choice"] = (PAD + 62, y, content_w - 80, LINE_H + 4)
+        # One compact row: Persona | Action | settings gear | ⋯ menu.
+        positions["persona_choice"] = (PAD, y, 50, LINE_H + 4)
+        positions["action_choice"] = (PAD + 54, y, content_w - 90, LINE_H + 4)
+        positions["settings_btn"] = (PAD + content_w - 34, y, 16, LINE_H + 4)
         positions["menu_btn"] = (PAD + content_w - 16, y, 16, LINE_H + 4)
         y += LINE_H + 6
         for index in range(2):
@@ -799,8 +809,43 @@ class _Bridge(object):
             self.on_toggle_agent()
         elif action == "context":
             self._show_context()
+        elif action == "walkthrough":
+            self.show_walkthrough(force=True)
         elif action == "diagnostics":
             self._copy_diagnostics()
+
+    def on_settings(self):
+        try:
+            import cp_options
+            cp_options.show(self.ctx, self.frame, self.config)
+        except Exception as error:
+            ui.log("settings dialog failed: %r" % error)
+            self._set_status("Could not open Settings.")
+            return
+        try:
+            self.config = cp_config.load()
+        except Exception:
+            pass
+        self._relayout(controls_ready=True)
+        try:
+            self._refresh_placeholder()
+        except Exception:
+            pass
+        self._set_status("Settings updated.")
+
+    def show_walkthrough(self, force=False):
+        try:
+            import cp_onboard
+            cp_onboard.show(self.ctx, self.frame, self.config, force=force)
+        except Exception as error:
+            ui.log("walkthrough failed: %r" % error)
+            return
+        if force:
+            return
+        try:
+            self.config = cp_config.load()
+        except Exception:
+            pass
 
     def _show_context(self):
         doc_ctx = self._current_doc_ctx()
@@ -2160,6 +2205,57 @@ def _set_last_active_deck(ctx):
         ui.log("_set_last_active_deck: committed")
     except Exception as error:
         ui.log("_set_last_active_deck failed: %r" % error)
+
+
+_walkthrough_scheduled = False
+_walkthrough_done = False
+_walkthrough_async = None
+
+
+def maybe_show_walkthrough(ctx, frame, config):
+    """Offer the guided tour once, after the panel has settled."""
+    global _walkthrough_scheduled, _walkthrough_async
+    if _walkthrough_scheduled or _walkthrough_done:
+        return
+    try:
+        import cp_onboard
+        if not cp_onboard.should_onboard(config):
+            return
+    except Exception:
+        return
+    _walkthrough_scheduled = True
+    try:
+        if _walkthrough_async is None:
+            _walkthrough_async = ui.smgr(ctx).createInstanceWithContext(
+                "com.sun.star.awt.AsyncCallback", ctx)
+        callback = ui.Callback(lambda data: _run_walkthrough(*data))
+    except Exception:
+        _walkthrough_scheduled = False
+        return
+
+    def worker():
+        time.sleep(1.5)
+        try:
+            _walkthrough_async.addCallback(callback, (ctx, frame))
+        except Exception:
+            global _walkthrough_scheduled
+            _walkthrough_scheduled = False
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def _run_walkthrough(ctx, frame):
+    global _walkthrough_scheduled, _walkthrough_done
+    try:
+        import cp_onboard
+        config = cp_config.load()
+        if cp_onboard.should_onboard(config):
+            cp_onboard.show(ctx, frame, config)
+    except Exception as error:
+        ui.log("walkthrough run failed: %r" % error)
+    finally:
+        _walkthrough_done = True
+        _walkthrough_scheduled = False
 
 
 def _provider_for_frame(frame):

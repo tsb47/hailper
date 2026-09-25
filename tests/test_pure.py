@@ -98,6 +98,12 @@ class TestConfig(unittest.TestCase):
                     "track_changes", "remember_keys", "stream", "providers"):
             self.assertIn(key, cp_config.DEFAULTS)
 
+    def test_onboard_flag(self):
+        self.assertIn("onboarded", cp_config.DEFAULTS)
+        self.assertTrue(cp_config.should_onboard({}))
+        self.assertTrue(cp_config.should_onboard({"onboarded": False}))
+        self.assertFalse(cp_config.should_onboard({"onboarded": True}))
+
 
 class TestProviders(unittest.TestCase):
     def test_many_presets(self):

@@ -4,6 +4,35 @@ All notable changes to HaiLPER are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-09-26
+
+### Added
+
+- **First-run walkthrough.** A short guided tour appears the first time you
+  open the HaiLPER sidebar: connecting a provider (keys go to the OS keyring),
+  choosing a Persona and Action, working with a selection, the right-click menu,
+  and Agent mode / web search. It opens Settings directly from the provider
+  step. Replay it any time from the panel menu or from **Settings → Walkthrough…**.
+- **Settings gear button** in the panel header, next to the Persona and Action
+  dropdowns.
+
+### Fixed
+
+- **Right-click menu reliably reappears.** The interceptor no longer bails out
+  when LibreOffice reuses its context-menu container, and it no longer inserts a
+  bare separator into the host menu (which could abort the whole insertion).
+  The submenu is now rebuilt for every right-click so it always reflects the
+  current selection. Menu construction is logged and surfaced in diagnostics.
+- The right-click interceptor is also registered when the sidebar panel opens,
+  not only from document jobs.
+
+### Changed
+
+- Removed the duplicate **Settings…** entry from the right-click document menu
+  (use the new settings gear or **Settings → Walkthrough…**).
+- Context menu no longer offers **Explain / define** for URLs or email addresses;
+  it shows the more relevant action instead.
+
 ## [1.7.1] - 2026-09-23
 
 ### Changed

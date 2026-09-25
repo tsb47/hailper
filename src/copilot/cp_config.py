@@ -35,7 +35,8 @@ def _provider_defaults():
 
 
 DEFAULTS = {
-    "schema": 5,
+    "schema": 6,
+    "onboarded": False,
     "provider": "ollama",
     "temperature": 0.3,
     "max_tokens": 1024,
@@ -127,6 +128,14 @@ def save(config):
             pass
         return True
     except OSError:
+        return False
+
+
+def should_onboard(config):
+    """True when the guided walkthrough has not been completed yet."""
+    try:
+        return not bool((config or {}).get("onboarded"))
+    except Exception:
         return False
 
 

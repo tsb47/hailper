@@ -104,6 +104,15 @@ class CopilotPanel(
                 self.window.getControl("instruction").setFocus()
             except Exception:
                 pass
+            try:
+                import cp_contextmenu
+                cp_contextmenu.ensure_registered(self.ctx, self.frame)
+            except Exception:
+                pass
+            try:
+                cp_dialog.maybe_show_walkthrough(self.ctx, self.frame, config)
+            except Exception:
+                pass
             self._request_layout()
             ui.log("CopilotPanel: built")
         return self

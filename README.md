@@ -46,6 +46,8 @@ Python packages are required.
   formatting/actions can target a section by heading.
 - **Agent mode** – an explicit multi-step loop where the model uses the edit,
   format and document tools until the task is done.
+- **Guided first-run walkthrough** – a short tour the first time you open the
+  panel, replayable from the menu or **Settings → Walkthrough…**.
 - **Starter prompts** and **saved conversations** (History picker).
 - **Per-action options** – format/length, style/length, language/register,
   proofread categories/severity (remembered per action).
@@ -169,8 +171,8 @@ Right-clicking always shows an **HaiLPER** submenu (items auto-run; they appear
 in Writer, Calc and Impress). The menu is **context-aware** — it adapts to what
 you have selected:
 
-- **Writer selection:** Explain / define (for short phrases) · Summarize linked
-  page (URLs) · Draft a reply (email addresses) · Look up on the web ·
+- **Writer selection:** Summarize linked page (URLs) · Draft a reply (email
+  addresses) · Explain / define (short phrases) · Look up on the web ·
   Rewrite as ▸ · Shorten · Make formal · Simplify · Summarize · Translate to ▸ ·
   Proofread · Continue writing · Ask AI… · Add to chat
 - **Calc:** Explain formula (when the cell starts with `=`), Summarize range,
@@ -178,17 +180,26 @@ you have selected:
 - **Impress:** Rewrite text · Summarize slide · Speaker notes · Translate to ▸ ·
   Ask AI… · Add to chat
 - **No selection:** Summarize document · Translate to ▸ · Explain document ·
-  Continue writing · Show context… · Settings…
+  Continue writing · Show context…
 - **Your custom actions** are listed in the submenu too.
 - **Translate to** lists the top five languages plus **More…**, which opens the
   panel with the full language list.
 
 The interceptor is registered automatically when a document is opened (via
-`Jobs.xcu`), so no setup is needed. It appears exactly **once** and is
-de-duplicated even if it gets registered more than once. The current selection
-is captured at the moment you click, so the model reads exactly what you had
-selected. **Add to chat** seeds the panel's prompt with the selection instead of
-running immediately.
+`Jobs.xcu`) and when the sidebar panel opens, so no setup is needed. It appears
+exactly **once**, and the submenu is rebuilt on every right-click so it always
+matches the current selection. The current selection is captured at the moment
+you click, so the model reads exactly what you had selected. **Add to chat**
+seeds the panel's prompt with the selection instead of running immediately.
+
+## First run
+
+The first time you open the HaiLPER sidebar, a short **walkthrough** appears:
+connecting a provider, choosing a Persona and Action, working with a selection,
+the right-click menu, and Agent mode / web search. The provider step has an
+**Open Settings…** button. Reopen the tour any time from the panel's **⋯** menu
+or from **Settings → Walkthrough…**. The gear button in the panel header opens
+Settings directly.
 
 ## Configure
 

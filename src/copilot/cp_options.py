@@ -8,6 +8,7 @@ from com.sun.star.awt import XItemListener
 
 import cp_actions_ui
 import cp_config
+import cp_onboard
 import cp_personas_ui
 import cp_providers
 import cp_secrets
@@ -329,6 +330,14 @@ class _OptionsBridge(object):
                 Label="Custom actions\u2026",
             ),
         )
+        self.model.insertByName(
+            "btn_walkthrough",
+            _create_model(
+                self.model, "com.sun.star.awt.UnoControlButton", "btn_walkthrough",
+                PositionX=field_x + 256, PositionY=y, Width=100, Height=BTN_H,
+                Label="Walkthrough\u2026",
+            ),
+        )
 
         y += BTN_H + 6
         self._add_label("system_label", PAD, y, "System prompt:", 80)
@@ -397,6 +406,10 @@ class _OptionsBridge(object):
         )
         self.dialog.getControl("btn_actions").addActionListener(
             _ActionListener(lambda e: cp_actions_ui.show(self.ctx, self.frame))
+        )
+        self.dialog.getControl("btn_walkthrough").addActionListener(
+            _ActionListener(lambda e: cp_onboard.show(self.ctx, self.frame,
+                                                      self.config, force=True))
         )
 
         self._load_provider()
